@@ -5,6 +5,7 @@ import { drawGrid, drawAiVisionCone, drawPlayer, drawBox } from './game/renderin
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { updateAiPlayer } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
+import StartScreen from './StartScreen';
 
 // Function to generate random boxes
 const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHeight: number = 600): Box[] => {
@@ -47,6 +48,9 @@ const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHei
 };
 
 const Game = () => {
+  // State to track if game has started
+  const [gameStarted, setGameStarted] = useState<boolean>(false);
+  
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
     // Human-controlled player
   const [player, setPlayer] = useState<Player>({    id: 'player1',
@@ -108,20 +112,24 @@ const Game = () => {
     
   // Initialize boxes and AI Manager when component mounts
   useEffect(() => {
-    setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
-    
-    // Initialize AI Manager
-    if (!aiManagerRef.current) {
-      console.log("Initializing AI Manager with config:", aiManagerConfig);
-      aiManagerRef.current = new AIManager(aiManagerConfig);
+    if (gameStarted) {
+      setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
+      
+      // Initialize AI Manager
+      if (!aiManagerRef.current) {
+        console.log("Initializing AI Manager with config:", aiManagerConfig);
+        aiManagerRef.current = new AIManager(aiManagerConfig);
+      }
     }
-  }, []);
+  }, [gameStarted]);
   
   // Track pressed keys
   const [keysPressed, setKeysPressed] = useState<{ [key: string]: boolean }>({});
 
   // Handle key events
   useEffect(() => {
+    if (!gameStarted) return;
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: true }));
       
@@ -142,7 +150,7 @@ const Game = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [tryAttack]);
+  }, [tryAttack, gameStarted]);
   // Update AI Manager config when maxBots or spawnLocation changes
   useEffect(() => {
     if (aiManagerRef.current) {
@@ -151,6 +159,8 @@ const Game = () => {
   }, [aiManagerConfig]);
   // Game loop
   useEffect(() => {
+    if (!gameStarted) return;
+    
     let animationFrameId: number;
     let lastTimestamp = 0;
     
@@ -191,7 +201,7 @@ const Game = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, boxes, aiManagerConfig]);
+  }, [keysPressed, player, boxes, aiManagerConfig, gameStarted]);
   
   // Render the game
   const renderGame = () => {
@@ -253,32 +263,49 @@ const Game = () => {
       // Then draw AI player
       drawPlayer(ctx, aiPlayer);
     });
-    
-    // Finally draw human player (so it appears on top if they overlap)
+      // Finally draw human player (so it appears on top if they overlap)
     drawPlayer(ctx, player);
-  };  return (
+  };
+  
+  // Function to handle game start
+  const handleGameStart = () => {
+    setGameStarted(true);
+  };
+  
+  return (
     <div className="flex flex-col items-center">
       <div className="flex items-center justify-between w-full max-w-2xl mb-4">
         <h1 className="text-2xl font-bold">Backstabber Game</h1>
-        <div className="flex items-center">
-          <span className="mr-2 font-bold">Defeated:</span>
-          <span className="bg-red-500 text-white px-3 py-1 rounded-md">{defeatedEnemies}</span>
-        </div>
-      </div>
-      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
-        <canvas 
-          ref={canvasRef} 
-          width={800} 
-          height={600}
-        ></canvas>
-        {attackCooldown && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded">
-            Attack Cooldown
+        {gameStarted && (
+          <div className="flex items-center">
+            <span className="mr-2 font-bold">Defeated:</span>
+            <span className="bg-red-500 text-white px-3 py-1 rounded-md">{defeatedEnemies}</span>
           </div>
         )}
       </div>
-      <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">        <div className="flex flex-col items-start mb-4">
-          <h2 className="font-bold mb-3">Game Controls:</h2>
+      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
+        {!gameStarted ? (
+          <StartScreen onGameStart={handleGameStart} />
+        ) : (
+          <>
+            <canvas 
+              ref={canvasRef} 
+              width={800} 
+              height={600}
+            ></canvas>
+            {attackCooldown && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded">
+                Attack Cooldown
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      
+      {gameStarted && (
+        <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">
+          <div className="flex flex-col items-start mb-4">
+            <h2 className="font-bold mb-3">Game Controls:</h2>
           
           <div className="flex flex-wrap items-center gap-4 mb-3">
             <div className="flex items-center gap-2">
@@ -383,7 +410,8 @@ const Game = () => {
               </button>
             </div>
           </div>
-        </div>        <ul className="list-disc pl-5">
+        </div>
+        <ul className="list-disc pl-5">
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">W</span> - Move Forward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">S</span> - Move Backward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">A</span> - Rotate Left</li>
@@ -394,7 +422,7 @@ const Game = () => {
           <h3 className="font-bold text-sm mb-1">Backstabbing Mechanics:</h3>
           <p className="text-sm">Get behind AI bots (outside their vision cone) and press <span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> to defeat them with a backstab. When an AI is vulnerable, a red dashed circle will appear around it.</p>
         </div>
-      </div>
+      </div>)}
     </div>
   );
 };
