@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { Player, AIVision, Direction, Box } from './game/types';
+import React, { useEffect, useRef, useState } from 'react';
+import { Player, AIVision, Direction, Box, AIManagerConfig } from './game/types';
 import { directionColors, aiDirectionColors } from './game/constants';
 import { drawGrid, drawAiVisionCone, drawPlayer, drawBox } from './game/rendering';
 import { updatePlayer } from './game/HumanPlayer';
 import { updateAiPlayer } from './game/AIPlayer';
+import { AIManager } from './game/AIManager';
 
 // Function to generate random boxes
 const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHeight: number = 600): Box[] => {
@@ -59,35 +60,30 @@ const Game = () => {
     rotation: 0, // Initially facing right (0 radians)
     rotationSpeed: 0.1 // Speed of rotation when turning
   });
-  
-  // AI-controlled player
-  const [aiPlayer, setAiPlayer] = useState<Player>({
-    id: 'ai1',
-    x: 200,
-    y: 200,
-    direction: 'right',
-    speed: 3, // Slightly slower than human player
-    size: 20,
-    pulse: Math.PI, // Start at different phase for visual distinction
-    isAI: true,
-    rotation: 0, // Initially facing right (0 radians)
-    rotationSpeed: 0.08 // Slightly slower rotation than the player
+    // AI Manager configuration
+  const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
+    maxBots: 2, // Default to 2 bots maximum
+    spawnLocation: { x: 200, y: 200 }, // Default spawn location
+    minSpawnDelay: 3000, // Min 3 seconds between spawns
+    maxSpawnDelay: 6000, // Max 6 seconds between spawns
+    enabled: true // AI spawning enabled by default
   });
+  
+  // AI Manager reference
+  const aiManagerRef = useRef<AIManager | null>(null);
   
   // Create boxes (obstacles)
   const [boxes, setBoxes] = useState<Box[]>([]);
-  
-  // Initialize boxes when component mounts
+    // Initialize boxes and AI Manager when component mounts
   useEffect(() => {
     setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
+    
+    // Initialize AI Manager
+    if (!aiManagerRef.current) {
+      console.log("Initializing AI Manager with config:", aiManagerConfig);
+      aiManagerRef.current = new AIManager(aiManagerConfig);
+    }
   }, []);
-  
-  // AI vision state
-  const [aiVision, setAiVision] = useState<AIVision>({
-    canSeePlayer: false,
-    visionConeAngle: 220, // 220 degrees vision cone
-    visionDistance: 40 * 4 // 4x the body size (40 is body diameter)
-  });
   
   // Track pressed keys
   const [keysPressed, setKeysPressed] = useState<{ [key: string]: boolean }>({});
@@ -95,11 +91,11 @@ const Game = () => {
   // Handle key events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      setKeysPressed((prev) => ({ ...prev, [e.key.toLowerCase()]: true }));
+      setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: true }));
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      setKeysPressed((prev) => ({ ...prev, [e.key.toLowerCase()]: false }));
+      setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: false }));
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -110,62 +106,41 @@ const Game = () => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
-    // AI movement logic
+  // Update AI Manager config when maxBots or spawnLocation changes
   useEffect(() => {
-    const aiMovementInterval = setInterval(() => {
-      // Only change rotation randomly if AI can't see the player
-      if (!aiVision.canSeePlayer && Math.random() < 0.1) { // 10% chance on each interval to change direction
-        // Random rotation change - between -π/2 and π/2 (quarter turn in either direction)
-        const randomRotation = Math.random() * Math.PI - Math.PI/2;
-        setAiPlayer(prev => {
-          let newRotation = (prev.rotation || 0) + randomRotation;
-          // Keep rotation in 0-2π range
-          if (newRotation < 0) newRotation += Math.PI * 2;
-          if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
-          
-          // Update direction based on new rotation angle
-          let newDirection: Direction = 'right';
-          if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-            newDirection = 'right';
-          } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-            newDirection = 'down';
-          } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-            newDirection = 'left';
-          } else {
-            newDirection = 'up';
-          }
-          
-          return { 
-            ...prev, 
-            rotation: newRotation,
-            direction: newDirection 
-          };
-        });
-      }
-    }, 200); // Check for direction change every 200ms
-    
-    return () => clearInterval(aiMovementInterval);
-  }, [aiVision.canSeePlayer]);
-    // Game loop
+    if (aiManagerRef.current) {
+      aiManagerRef.current.updateConfig(aiManagerConfig);
+    }
+  }, [aiManagerConfig]);
+  // Game loop
   useEffect(() => {
     let animationFrameId: number;
-    const gameLoop = () => {
+    let lastTimestamp = 0;
+    
+    const gameLoop = (timestamp: number) => {
+      // Calculate time passed since last frame for AI Manager
+      const deltaTime = lastTimestamp ? timestamp - lastTimestamp : 0;
+      lastTimestamp = timestamp;
+      
+      // Get all active AI players
+      const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+      
       // Update player position with collision detection
+      // Pass all AI players for collision detection
       setPlayer(prevPlayer => 
-        updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, aiPlayer)
+        updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers)
       );
-      
-      // Update AI player position and vision with collision detection
-      const { updatedAiPlayer, updatedAiVision } = updateAiPlayer(
-        aiPlayer,
-        player,
-        aiVision,
-        canvasRef.current,
-        boxes
-      );
-      
-      setAiPlayer(updatedAiPlayer);
-      setAiVision(updatedAiVision);
+        // Update all AI players via the manager
+      if (aiManagerRef.current) {
+        // Use performance.now() for consistent timing with the AI Manager
+        const currentTime = performance.now();
+        aiManagerRef.current.updateAllAIPlayers(
+          player,
+          canvasRef.current,
+          boxes,
+          currentTime
+        );
+      }
       
       // Render game
       renderGame();
@@ -179,7 +154,7 @@ const Game = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, aiPlayer, aiVision, boxes]);
+  }, [keysPressed, player, boxes, aiManagerConfig]);
   
   // Render the game
   const renderGame = () => {
@@ -187,7 +162,9 @@ const Game = () => {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;    // Clear the canvas
+    if (!ctx) return;
+    
+    // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw a grid for the top-down view
@@ -197,12 +174,31 @@ const Game = () => {
     boxes.forEach(box => {
       drawBox(ctx, box);
     });
-      // Draw the AI vision cone above boxes but behind players
-    drawAiVisionCone(ctx, aiPlayer, aiVision.canSeePlayer, aiVision.visionConeAngle, aiVision.visionDistance, boxes, player);
       
-    // Then draw AI player
-    drawPlayer(ctx, aiPlayer);
+    // Get all active AI players
+    const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+    
+    // Draw the AI vision cones and players
+    aiPlayers.forEach(aiPlayer => {
+      const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
       
+      if (aiVision) {
+        // Draw the AI vision cone above boxes but behind players
+        drawAiVisionCone(
+          ctx, 
+          aiPlayer, 
+          aiVision.canSeePlayer, 
+          aiVision.visionConeAngle, 
+          aiVision.visionDistance, 
+          boxes, 
+          player
+        );
+      }
+      
+      // Then draw AI player
+      drawPlayer(ctx, aiPlayer);
+    });
+    
     // Finally draw human player (so it appears on top if they overlap)
     drawPlayer(ctx, player);
   };
@@ -214,16 +210,10 @@ const Game = () => {
           ref={canvasRef} 
           width={800} 
           height={600}
-        ></canvas>
-        <div className="absolute top-4 left-4 bg-black/60 dark:bg-black/80 text-white p-3 rounded-md shadow-md backdrop-blur-sm">
+        ></canvas>        <div className="absolute top-4 left-4 bg-black/60 dark:bg-black/80 text-white p-3 rounded-md shadow-md backdrop-blur-sm">
           <p>Use <span className="font-bold">WASD</span> keys to move</p>
           <p>Player facing: <span className="font-bold uppercase">{player.direction}</span> ({(player.rotation * 180 / Math.PI).toFixed(0)}°)</p>
-          <p>AI facing: <span className="font-bold uppercase">{aiPlayer.direction}</span> ({(aiPlayer.rotation * 180 / Math.PI).toFixed(0)}°)</p>
-          <p>AI vision: 
-            <span className={`font-bold ml-1 ${aiVision.canSeePlayer ? 'text-red-400' : ''}`}>
-              {aiVision.canSeePlayer ? 'PLAYER DETECTED!' : 'Scanning...'}
-            </span>
-          </p>
+          <p>AI Bots: <span className="font-bold">{aiManagerRef.current?.getAIPlayers().length || 0}/{aiManagerConfig.maxBots}</span></p>
           <p className="text-xs mt-1">Game contains <span className="font-bold">{boxes.length}</span> obstacle boxes</p>
           <p className="text-xs">Collide with boxes and other players</p>
           
@@ -254,9 +244,10 @@ const Game = () => {
           </div>
         </div>
       </div>
-      <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4">
-          <h2 className="font-bold">Game Controls:</h2>
-          <div className="flex items-center gap-4 mt-2 md:mt-0">
+      <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">        <div className="flex flex-col items-start mb-4">
+          <h2 className="font-bold mb-3">Game Controls:</h2>
+          
+          <div className="flex flex-wrap items-center gap-4 mb-3">
             <div className="flex items-center gap-2">
               <label htmlFor="boxCount" className="text-sm">Box Count:</label>
               <input 
@@ -266,7 +257,7 @@ const Game = () => {
                 max="10" 
                 defaultValue="2" 
                 className="w-24 accent-blue-500 dark:accent-blue-400"
-                onChange={(e) => setBoxes(generateRandomBoxes(parseInt(e.target.value)))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBoxes(generateRandomBoxes(parseInt(e.target.value)))}
               />
               <span className="text-sm">{boxes.length}</span>
             </div>
@@ -276,6 +267,88 @@ const Game = () => {
             >
               Regenerate Boxes
             </button>
+          </div>
+          
+          <div className="flex flex-col gap-3 w-full">
+            <h3 className="font-bold text-sm">AI Bot Settings:</h3>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="maxBots" className="text-sm">Max Bots:</label>
+                <input 
+                  type="range" 
+                  id="maxBots"
+                  min="1" 
+                  max="4" 
+                  value={aiManagerConfig.maxBots}
+                  className="w-24 accent-blue-500 dark:accent-blue-400"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
+                    ...aiManagerConfig,
+                    maxBots: parseInt(e.target.value)
+                  })}
+                />
+                <span className="text-sm">{aiManagerConfig.maxBots}</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="minDelay" className="text-sm">Min Delay (ms):</label>
+                <input 
+                  type="number"
+                  id="minDelay" 
+                  min="500" 
+                  max="10000" 
+                  step="500" 
+                  value={aiManagerConfig.minSpawnDelay}
+                  className="w-20 px-2 py-1 border rounded"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
+                    ...aiManagerConfig,
+                    minSpawnDelay: parseInt(e.target.value)
+                  })}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="maxDelay" className="text-sm">Max Delay (ms):</label>
+                <input 
+                  type="number"
+                  id="maxDelay" 
+                  min="1000" 
+                  max="20000"
+                  step="500" 
+                  value={aiManagerConfig.maxSpawnDelay}
+                  className="w-20 px-2 py-1 border rounded"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
+                    ...aiManagerConfig,
+                    maxSpawnDelay: parseInt(e.target.value)
+                  })}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="aiEnabled" className="text-sm">AI Enabled:</label>
+                <input 
+                  type="checkbox"
+                  id="aiEnabled"
+                  checked={aiManagerConfig.enabled}
+                  className="w-4 h-4 accent-blue-500"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
+                    ...aiManagerConfig,
+                    enabled: e.target.checked
+                  })}
+                />
+              </div>
+              
+              <button 
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+                onClick={() => {
+                  // Find all AI players and mark them as dead
+                  const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+                  aiPlayers.forEach((ai: Player) => aiManagerRef.current?.markAIDead(ai.id));
+                }}
+              >
+                Kill All Bots
+              </button>
+            </div>
           </div>
         </div>
         <ul className="list-disc pl-5">

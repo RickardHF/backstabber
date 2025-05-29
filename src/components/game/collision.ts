@@ -74,7 +74,8 @@ export const calculateNonCollidingPosition = (
   newY: number, 
   player: Player, 
   boxes: Box[],
-  otherPlayer?: Player
+  otherPlayer?: Player,
+  otherAIPlayers: Player[] = []
 ): { x: number, y: number } => {
   // Create test player at the new position
   const testPlayer: Player = {
@@ -100,6 +101,22 @@ export const calculateNonCollidingPosition = (
       x: player.x,
       y: player.y
     };
+  }
+  
+  // Check for collisions with other AI players
+  if (otherAIPlayers && otherAIPlayers.length > 0) {
+    for (const aiPlayer of otherAIPlayers) {
+      // Skip if this is comparing with itself or a dead AI
+      if (aiPlayer.id === player.id || aiPlayer.isDead) continue;
+      
+      if (checkPlayerCollision(testPlayer, aiPlayer)) {
+        // If players would collide, prevent movement by returning original position
+        return {
+          x: player.x,
+          y: player.y
+        };
+      }
+    }
   }
 
   // No collision, return the new position

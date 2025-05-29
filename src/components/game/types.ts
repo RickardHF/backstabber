@@ -18,6 +18,7 @@ export interface GameObject {
 // Player interface
 export interface Player extends GameObject {
   isAI?: boolean;
+  isDead?: boolean;
 }
 
 // AI vision state interface
@@ -25,6 +26,15 @@ export interface AIVision {
   canSeePlayer: boolean;
   visionConeAngle: number;
   visionDistance: number;
+}
+
+// AI Manager configuration interface
+export interface AIManagerConfig {
+  maxBots: number;
+  spawnLocation: { x: number, y: number };
+  minSpawnDelay: number;
+  maxSpawnDelay: number;
+  enabled: boolean;
 }
 
 // Box interface for obstacles

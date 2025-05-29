@@ -7,7 +7,7 @@ export const updatePlayer = (
   keysPressed: { [key: string]: boolean },
   canvas: HTMLCanvasElement | null,
   boxes: Box[] = [],
-  aiPlayer: Player | undefined = undefined
+  ...aiPlayers: Player[]
 ): Player => {
   let newX = player.x;
   let newY = player.y;
@@ -65,14 +65,40 @@ export const updatePlayer = (
     newX = Math.max(player.size, Math.min(canvas.width - player.size, newX));
     newY = Math.max(player.size, Math.min(canvas.height - player.size, newY));
   }
+    // Check for collisions and adjust position if necessary
+  // Create copy with the new position for collision testing
+  const testPlayer = {...player, x: newX, y: newY};
   
-  // Check for collisions and adjust position if necessary
-  const finalPosition = calculateNonCollidingPosition(newX, newY, player, boxes, aiPlayer);
+  // Start with the assumption that the position is valid
+  let finalX = newX;
+  let finalY = newY;
+  
+  // Check for box collisions first
+  const boxCollisionResult = calculateNonCollidingPosition(newX, newY, player, boxes);
+  if (boxCollisionResult.x !== newX || boxCollisionResult.y !== newY) {
+    // We hit a box, use the adjusted position
+    finalX = boxCollisionResult.x;
+    finalY = boxCollisionResult.y;
+  }
+  
+  // Check for collisions with each AI player
+  for (const aiPlayer of aiPlayers) {
+    if (aiPlayer.isDead) continue; // Skip dead AI players
+    
+    const aiCollisionResult = calculateNonCollidingPosition(finalX, finalY, player, [], aiPlayer);
+    if (aiCollisionResult.x !== finalX || aiCollisionResult.y !== finalY) {
+      // We hit an AI player, use the adjusted position
+      finalX = aiCollisionResult.x;
+      finalY = aiCollisionResult.y;
+      // No need to check further once we've found a collision
+      break;
+    }
+  }
   
   return {
     ...player,
-    x: finalPosition.x,
-    y: finalPosition.y,
+    x: finalX,
+    y: finalY,
     direction: newDirection,
     rotation: newRotation,
     pulse: (player.pulse + 0.1) % (Math.PI * 2) // Increment pulse for animation

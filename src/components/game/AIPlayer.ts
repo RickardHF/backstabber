@@ -123,10 +123,11 @@ export const updateAiPlayer = (
   player: Player,
   aiVision: AIVision,
   canvas: HTMLCanvasElement | null,
-  boxes: Box[] = []
+  boxes: Box[] = [],
+  otherAIPlayers: Player[] = []
 ): { updatedAiPlayer: Player, updatedAiVision: AIVision } => {
   // First, check if AI can see the player, passing in the boxes to check for line-of-sight
-  const updatedAiVision = checkAiVision(aiPlayer, player, aiVision, boxes);
+  const updatedAiVision = checkAiVision(aiPlayer, player, aiVision, boxes, otherAIPlayers.length > 0 ? otherAIPlayers[0] : undefined);
   
   let newX = aiPlayer.x;
   let newY = aiPlayer.y;
@@ -244,9 +245,23 @@ export const updateAiPlayer = (
     newX = Math.max(aiPlayer.size, Math.min(canvas.width - aiPlayer.size, newX));
     newY = Math.max(aiPlayer.size, Math.min(canvas.height - aiPlayer.size, newY));
   }
+    // Check for and handle collisions with all entities
+  const collidableEntities = [player, ...boxes];
   
-  // Check for and handle collisions
-  const { x: finalX, y: finalY } = calculateNonCollidingPosition(newX, newY, aiPlayer, boxes, player);
+  // Add other AI players to collision check
+  if (otherAIPlayers && otherAIPlayers.length > 0) {
+    collidableEntities.push(...otherAIPlayers);
+  }
+  
+  // Calculate non-colliding position
+  const { x: finalX, y: finalY } = calculateNonCollidingPosition(
+    newX, 
+    newY, 
+    aiPlayer, 
+    boxes, 
+    player,
+    otherAIPlayers
+  );
   
   // If the AI hits a box or player, choose a new random rotation
   if (finalX !== newX || finalY !== newY) {
