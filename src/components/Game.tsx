@@ -204,45 +204,12 @@ const Game = () => {
   };
   return (
     <div className="flex flex-col items-center">
-      <h1 className="text-2xl font-bold mb-4">Simple 2D Game</h1>
-      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
+      <h1 className="text-2xl font-bold mb-4">Simple 2D Game</h1>      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
         <canvas 
           ref={canvasRef} 
           width={800} 
           height={600}
-        ></canvas>        <div className="absolute top-4 left-4 bg-black/60 dark:bg-black/80 text-white p-3 rounded-md shadow-md backdrop-blur-sm">
-          <p>Use <span className="font-bold">WASD</span> keys to move</p>
-          <p>Player facing: <span className="font-bold uppercase">{player.direction}</span> ({(player.rotation * 180 / Math.PI).toFixed(0)}°)</p>
-          <p>AI Bots: <span className="font-bold">{aiManagerRef.current?.getAIPlayers().length || 0}/{aiManagerConfig.maxBots}</span></p>
-          <p className="text-xs mt-1">Game contains <span className="font-bold">{boxes.length}</span> obstacle boxes</p>
-          <p className="text-xs">Collide with boxes and other players</p>
-          
-          <div className="mt-2">
-            <p className="text-xs mb-1">Player colors:</p>
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(directionColors).map(([dir, color]) => (
-                dir !== 'none' && (
-                  <div key={dir} className="flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: color }}></div>
-                    <span className="text-xs uppercase">{dir}</span>
-                  </div>
-                )
-              ))}
-            </div>
-            
-            <p className="text-xs mb-1 mt-2">AI colors:</p>
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(aiDirectionColors).map(([dir, color]) => (
-                dir !== 'none' && (
-                  <div key={dir} className="flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: color }}></div>
-                    <span className="text-xs uppercase">{dir}</span>
-                  </div>
-                )
-              ))}
-            </div>
-          </div>
-        </div>
+        ></canvas>
       </div>
       <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">        <div className="flex flex-col items-start mb-4">
           <h2 className="font-bold mb-3">Game Controls:</h2>
