@@ -69,12 +69,11 @@ export class AIManager {
     if (this.aiPlayers.length >= this.config.maxBots) return;
     
     // Create a new AI player
-    const newAIPlayer: Player = {
-      id: `ai-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    const newAIPlayer: Player = {      id: `ai-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       x: this.config.spawnLocation.x,
       y: this.config.spawnLocation.y,
       direction: 'right',
-      speed: 3, // Slightly slower than human player
+      speed: .5, // Slower than human player
       size: 20,
       pulse: Math.PI * Math.random(), // Random starting phase
       isAI: true,

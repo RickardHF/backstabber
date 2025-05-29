@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Player, AIVision, Direction, Box, AIManagerConfig } from './game/types';
 import { directionColors, aiDirectionColors } from './game/constants';
 import { drawGrid, drawAiVisionCone, drawPlayer, drawBox } from './game/rendering';
-import { updatePlayer } from './game/HumanPlayer';
+import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { updateAiPlayer } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
 
@@ -49,12 +49,11 @@ const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHei
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
     // Human-controlled player
-  const [player, setPlayer] = useState<Player>({
-    id: 'player1',
+  const [player, setPlayer] = useState<Player>({    id: 'player1',
     x: 400,
     y: 300,
     direction: 'right',
-    speed: 5,
+    speed: 3,
     size: 20,
     pulse: 0,
     rotation: 0, // Initially facing right (0 radians)
@@ -74,7 +73,40 @@ const Game = () => {
   
   // Create boxes (obstacles)
   const [boxes, setBoxes] = useState<Box[]>([]);
-    // Initialize boxes and AI Manager when component mounts
+  
+  // Track attack cooldown
+  const [attackCooldown, setAttackCooldown] = useState<boolean>(false);
+  
+  // Track defeated enemies for scoring
+  const [defeatedEnemies, setDefeatedEnemies] = useState<number>(0);
+  
+  // Handle attacking AI bots from behind
+  const tryAttack = useCallback(() => {
+    if (attackCooldown || !aiManagerRef.current) return;
+    
+    // Get all active AI bots
+    const aiPlayers = aiManagerRef.current.getAIPlayers();
+    
+    // Check each AI bot to see if player can backstab it
+    for (const aiPlayer of aiPlayers) {
+      const aiVision = aiManagerRef.current.getAIVision(aiPlayer.id);
+      
+      if (aiVision && isPlayerBehindAI(player, aiPlayer, aiVision)) {
+        // Player is behind AI and within backstabbing range
+        aiManagerRef.current.markAIDead(aiPlayer.id);
+        
+        // Add to the defeated enemies count
+        setDefeatedEnemies(prev => prev + 1);
+        
+        // Set cooldown to prevent rapid attacks
+        setAttackCooldown(true);
+        setTimeout(() => setAttackCooldown(false), 500); // 500ms cooldown
+        break;
+      }
+    }
+  }, [player, attackCooldown]);
+    
+  // Initialize boxes and AI Manager when component mounts
   useEffect(() => {
     setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
     
@@ -92,6 +124,11 @@ const Game = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: true }));
+      
+      // Check for space bar to attack
+      if (e.key === ' ' || e.code === 'Space') {
+        tryAttack();
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -105,7 +142,7 @@ const Game = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [tryAttack]);
   // Update AI Manager config when maxBots or spawnLocation changes
   useEffect(() => {
     if (aiManagerRef.current) {
@@ -193,6 +230,24 @@ const Game = () => {
           boxes, 
           player
         );
+        
+        // Check if player is behind this AI and highlight it as vulnerable
+        if (isPlayerBehindAI(player, aiPlayer, aiVision)) {
+          // Draw a targeting indicator around the AI
+          ctx.beginPath();
+          ctx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';  
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 2]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          // Add text hint above the AI
+          ctx.font = '12px Arial';
+          ctx.fillStyle = 'red';
+          ctx.textAlign = 'center';
+          ctx.fillText('Backstab!', aiPlayer.x, aiPlayer.y - aiPlayer.size - 10);
+        }
       }
       
       // Then draw AI player
@@ -201,15 +256,26 @@ const Game = () => {
     
     // Finally draw human player (so it appears on top if they overlap)
     drawPlayer(ctx, player);
-  };
-  return (
+  };  return (
     <div className="flex flex-col items-center">
-      <h1 className="text-2xl font-bold mb-4">Simple 2D Game</h1>      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
+      <div className="flex items-center justify-between w-full max-w-2xl mb-4">
+        <h1 className="text-2xl font-bold">Backstabber Game</h1>
+        <div className="flex items-center">
+          <span className="mr-2 font-bold">Defeated:</span>
+          <span className="bg-red-500 text-white px-3 py-1 rounded-md">{defeatedEnemies}</span>
+        </div>
+      </div>
+      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
         <canvas 
           ref={canvasRef} 
           width={800} 
           height={600}
         ></canvas>
+        {attackCooldown && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded">
+            Attack Cooldown
+          </div>
+        )}
       </div>
       <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">        <div className="flex flex-col items-start mb-4">
           <h2 className="font-bold mb-3">Game Controls:</h2>
@@ -317,13 +383,17 @@ const Game = () => {
               </button>
             </div>
           </div>
-        </div>
-        <ul className="list-disc pl-5">
+        </div>        <ul className="list-disc pl-5">
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">W</span> - Move Forward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">S</span> - Move Backward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">A</span> - Rotate Left</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">D</span> - Rotate Right</li>
+          <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> - Attack (Backstab)</li>
         </ul>
+        <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-200 dark:border-red-800 rounded-md">
+          <h3 className="font-bold text-sm mb-1">Backstabbing Mechanics:</h3>
+          <p className="text-sm">Get behind AI bots (outside their vision cone) and press <span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> to defeat them with a backstab. When an AI is vulnerable, a red dashed circle will appear around it.</p>
+        </div>
       </div>
     </div>
   );

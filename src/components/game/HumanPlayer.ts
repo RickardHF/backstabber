@@ -1,5 +1,46 @@
-import { Player, Direction, Box } from './types';
+import { Player, Direction, Box, AIVision } from './types';
 import { calculateNonCollidingPosition } from './collision';
+
+// Function to check if player is behind an AI bot (outside of vision cone)
+export const isPlayerBehindAI = (
+  player: Player,
+  aiPlayer: Player,
+  aiVision: AIVision
+): boolean => {
+  // Calculate vector from AI to player
+  const dx = player.x - aiPlayer.x;
+  const dy = player.y - aiPlayer.y;
+  
+  // Calculate distance between AI and player
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  
+  // Player must be close enough to the AI to backstab
+  const backstabDistance = aiPlayer.size * 2.5;
+  if (distance > backstabDistance) {
+    return false;
+  }
+  
+  // Calculate the angle to the player in radians
+  const angleToPlayer = Math.atan2(dy, dx);
+  
+  // Get the AI's rotation
+  const rotation = aiPlayer.rotation || 0;
+  
+  // Calculate the difference between the two angles
+  let angleDiff = Math.abs(angleToPlayer - rotation);
+  // Ensure the angle difference is between 0 and PI
+  if (angleDiff > Math.PI) {
+    angleDiff = 2 * Math.PI - angleDiff;
+  }
+  
+  // Convert vision cone angle from degrees to radians for comparison
+  const visionConeAngleRad = (aiVision.visionConeAngle * Math.PI) / 180;
+  
+  // Check if player is outside the vision cone
+  const isOutsideCone = angleDiff > visionConeAngleRad / 2;
+  
+  return isOutsideCone;
+};
 
 // Update player position based on key presses
 export const updatePlayer = (
