@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Player, AIVision, Direction, Box, AIManagerConfig } from './game/types';
 import { directionColors, aiDirectionColors } from './game/constants';
-import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath } from './game/rendering';
+import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { updateAiPlayer } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
@@ -48,8 +48,9 @@ const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHei
 
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    // Human-controlled player
-  const [player, setPlayer] = useState<Player>({    id: 'player1',
+  // Human-controlled player
+  const [player, setPlayer] = useState<Player>({
+    id: 'player1',
     x: 400,
     y: 300,
     direction: 'right',
@@ -58,7 +59,11 @@ const Game = () => {
     pulse: 0,
     rotation: 0, // Initially facing right (0 radians)
     rotationSpeed: 0.1, // Speed of rotation when turning
-    isDead: false
+    isDead: false,
+    vision: {
+      visionConeAngle: 220, // Same 220-degree field of view as AI
+      visionDistance: 40 * 5 // 5x the body size - slightly larger than AI
+    }
   });
     // AI Manager configuration
   const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
@@ -175,8 +180,7 @@ const Game = () => {
     if (player.isDead) {
       return;
     }
-    
-    // Stop the game loop
+      // Stop the game loop
     setGameActive(false);
     
     // Mark player as dead
@@ -216,13 +220,15 @@ const Game = () => {
     };
     
     requestAnimationFrame(animatePlayerDeath);
-  };
-  // Reset game function
+  };  // Reset game function
   const resetGame = () => {
     // Cancel any ongoing animation
     if (deathAnimation.animationFrameId) {
       cancelAnimationFrame(deathAnimation.animationFrameId);
     }
+    
+    // Reset the score when restarting the game
+    setDefeatedEnemies(0);
     
     // Clear and re-initialize the AI Manager to prevent immediate collision
     if (aiManagerRef.current) {
@@ -263,15 +269,18 @@ const Game = () => {
     setTimeout(() => {
       setGraceActive(false);
     }, 2000); // 2 seconds of grace period
-    
-    setPlayer(prev => ({
+      setPlayer(prev => ({
       ...prev,
       x: 400,
       y: 300,
       direction: 'right',
       rotation: 0,
       pulse: 0,
-      isDead: false
+      isDead: false,
+      vision: {
+        visionConeAngle: 220, // Same 220-degree field of view as AI
+        visionDistance: 40 * 5 // 5x the body size
+      }
     }));
     
     // Reset death animation
@@ -362,8 +371,7 @@ const Game = () => {
       cancelAnimationFrame(animationFrameId);
     };
   }, [keysPressed, player, boxes, aiManagerConfig, gameActive]);
-  
-  // Render the game
+    // Render the game
   const renderGame = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -377,22 +385,32 @@ const Game = () => {
     // Draw a grid for the top-down view
     drawGrid(ctx, canvas);
     
+    // Create an offscreen canvas to draw the full scene first
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = canvas.width;
+    offscreenCanvas.height = canvas.height;
+    const offCtx = offscreenCanvas.getContext('2d');
+    
+    if (!offCtx) return;
+    
+    // Draw grid on the offscreen canvas
+    drawGrid(offCtx, offscreenCanvas);
+    
     // Draw boxes first so they appear as background obstacles
     boxes.forEach(box => {
-      drawBox(ctx, box);
+      drawBox(offCtx, box);
     });
-      
-    // Get all active AI players
+        // Get all active AI players
     const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
     
-    // Draw the AI vision cones and players
+    // Draw the AI vision cones and players on offscreen canvas
     aiPlayers.forEach(aiPlayer => {
       const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
       
       if (aiVision) {
         // Draw the AI vision cone above boxes but behind players
         drawAiVisionCone(
-          ctx, 
+          offCtx, 
           aiPlayer, 
           aiVision.canSeePlayer, 
           aiVision.visionConeAngle, 
@@ -404,38 +422,125 @@ const Game = () => {
         // Check if player is behind this AI and highlight it as vulnerable
         if (!player.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
           // Draw a targeting indicator around the AI
-          ctx.beginPath();
-          ctx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';  
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 2]);
-          ctx.stroke();
-          ctx.setLineDash([]);
+          offCtx.beginPath();
+          offCtx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
+          offCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';  
+          offCtx.lineWidth = 2;
+          offCtx.setLineDash([4, 2]);
+          offCtx.stroke();
+          offCtx.setLineDash([]);
           
           // Add text hint above the AI
-          ctx.font = '12px Arial';
-          ctx.fillStyle = 'red';
-          ctx.textAlign = 'center';
-          ctx.fillText('Backstab!', aiPlayer.x, aiPlayer.y - aiPlayer.size - 10);
+          offCtx.font = '12px Arial';
+          offCtx.fillStyle = 'red';
+          offCtx.textAlign = 'center';
+          offCtx.fillText('Backstab!', aiPlayer.x, aiPlayer.y - aiPlayer.size - 10);
         }
       }
       
       // Then draw AI player
-      drawPlayer(ctx, aiPlayer);
+      drawPlayer(offCtx, aiPlayer);
     });    if (player.isDead) {
       // Draw death animation instead of normal player
-      drawPlayerDeath(ctx, player, deathAnimation.killedBy, deathAnimation.progress);
+      drawPlayerDeath(offCtx, player, deathAnimation.killedBy, deathAnimation.progress);
       
       // For visual effect only - draw a darker overlay when the animation is progressing
       // The actual UI elements are handled by the React overlay
       if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 0.95) {
         const overlayOpacity = (deathAnimation.progress - 0.5) * 2 * 0.5; // 0 to 0.5 opacity
-        ctx.save();
-        ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        offCtx.save();
+        offCtx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
+        offCtx.fillRect(0, 0, canvas.width, canvas.height);
+        offCtx.restore();
+      }
+      
+      // In death state, show the entire map
+      ctx.drawImage(offscreenCanvas, 0, 0);
+    } else {
+      // Player is alive, create vision cone mask
+      
+      // Clear the final canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw the player's vision cone to create the clipping mask
+      ctx.save();
+      
+      if (player.vision) {
+        // Use larger visibility around the player itself to ensure they can always see themselves clearly
+        const selfVisibilityRadius = player.size * 3;
+        
+        // Start creating the clipping path for the vision cone
+        ctx.beginPath();
+        // First add a circle around the player for self-visibility
+        ctx.arc(player.x, player.y, selfVisibilityRadius, 0, Math.PI * 2);
+        
+        // Then add the vision cone
+        // Create vision cone path
+        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = player.rotation || 0;
+        const startAngle = baseAngle - visionConeAngleRad / 2;
+        const rayCount = 60;
+        
+        // Starting point of the vision cone (player's position)
+        ctx.moveTo(player.x, player.y);
+        
+        // Cast rays to create the vision cone path
+        for (let i = 0; i <= rayCount; i++) {
+          const rayAngle = startAngle + (i / rayCount) * visionConeAngleRad;
+          
+          // Calculate ray direction
+          const dirX = Math.cos(rayAngle);
+          const dirY = Math.sin(rayAngle);
+          
+          // Initialize rayLength to the vision distance
+          let rayLength = player.vision.visionDistance;
+          
+          // Check intersection with each box and update rayLength if needed
+          for (const box of boxes) {
+            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, box);
+            if (dist !== null && dist < rayLength) {
+              rayLength = dist;
+            }
+          }
+          
+          // Check intersection with AI players
+          for (const aiPlayer of aiPlayers) {
+            // Create a box representation of the AI player
+            const aiBox = {
+              ...aiPlayer,
+              width: aiPlayer.size * 2,
+              height: aiPlayer.size * 2,
+              color: 'unused'
+            };
+            
+            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, aiBox);
+            if (dist !== null && dist < rayLength) {
+              rayLength = dist;
+            }
+          }
+          
+          // Calculate the endpoint of the ray
+          const endX = player.x + dirX * rayLength;
+          const endY = player.y + dirY * rayLength;
+          
+          // Draw line to the endpoint
+          ctx.lineTo(endX, endY);
+        }
+        
+        // Close the path
+        ctx.closePath();
+        
+        // Create clipping region from the vision cone
+        ctx.clip();
+        
+        // Draw the offscreen canvas through the clipping mask
+        ctx.drawImage(offscreenCanvas, 0, 0);
+        
+        // Restore the context
         ctx.restore();
-      }    } else {
-      // Draw normal player
+      }
+      
+      // Draw normal player on the main canvas
       drawPlayer(ctx, player);
       
       // If grace period is active, draw a protective shield around the player
@@ -448,12 +553,66 @@ const Game = () => {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        // Add shield text
-        ctx.font = '12px Arial';
-        ctx.fillStyle = 'lightblue';
+        // Add shield text        ctx.font = '12px Arial';
+        ctx.fillStyle = 'rgba(64, 196, 255, 0.8)';
         ctx.textAlign = 'center';
         ctx.fillText('Shield Active', player.x, player.y - player.size - 10);
       }
+      
+      // Draw a faint border for the vision cone so player can see their field of view
+      if (player.vision) {
+        ctx.save();
+        
+        // Create the vision cone outline
+        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = player.rotation || 0;
+        const startAngle = baseAngle - visionConeAngleRad / 2;
+        const endAngle = baseAngle + visionConeAngleRad / 2;
+        
+        // Draw the arc for the vision cone border
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y);
+        ctx.arc(player.x, player.y, player.vision.visionDistance, startAngle, endAngle);
+        ctx.closePath();
+        
+        // Style for the vision cone border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        ctx.restore();
+      }
+    }
+    
+    // Draw a 'danger zone' indicator behind the player to show their blind spot
+    if (!graceActive && !player.isDead && player.vision) {
+      ctx.save();
+      
+      // Calculate the blind spot arc (area outside the vision cone)
+      const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
+      const baseAngle = player.rotation || 0;
+      
+      // The blind spot is the area behind the player
+      // It's calculated as the complementary angle of the vision cone
+      const blindSpotAngle = 2 * Math.PI - visionConeAngleRad;
+      const blindSpotStartAngle = baseAngle + visionConeAngleRad / 2;
+      const blindSpotEndAngle = baseAngle - visionConeAngleRad / 2 + 2 * Math.PI;
+      
+      // Draw the blind spot indicator at a short distance behind the player
+      const indicatorDistance = player.size * 2;
+      
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.arc(player.x, player.y, indicatorDistance, blindSpotStartAngle, blindSpotEndAngle);
+      ctx.closePath();
+      
+      // Style for the blind spot indicator
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+      ctx.fill();
+      
+      ctx.restore();
     }
   };
   return (

@@ -53,7 +53,7 @@ export const drawBox = (ctx: CanvasRenderingContext2D, box: Box) => {
 };
 
 // Function to check if a ray intersects with a box and returns the distance to intersection
-const rayBoxIntersection = (
+export const rayBoxIntersection = (
   x0: number, y0: number, // Ray origin
   dirX: number, dirY: number, // Ray direction (normalized)
   box: Box
@@ -182,6 +182,88 @@ export const drawAiVisionCone = (
   
   // Restore the context
   ctx.restore();
+};
+
+// Helper function to draw player's vision cone
+export const drawPlayerVisionCone = (
+  ctx: CanvasRenderingContext2D, 
+  player: Player, 
+  visionConeAngle: number, 
+  visionDistance: number,
+  boxes: Box[] = [],
+  otherPlayers: Player[] = []
+) => {
+  if (player.direction === 'none') return;
+  
+  // Calculate the cone angle in radians
+  const coneAngleRad = (visionConeAngle * Math.PI) / 180;
+  
+  // Use the rotation property directly to determine vision cone orientation
+  const baseAngle = player.rotation || 0;
+  
+  // Calculate the start and end angles for the cone
+  const startAngle = baseAngle - coneAngleRad / 2;
+  
+  // Number of rays to cast
+  const rayCount = 60; // Higher = better quality but lower performance
+  
+  // Save context state
+  ctx.save();
+  
+  // Prepare to draw the vision cone using rays
+  ctx.beginPath();
+  ctx.moveTo(player.x, player.y);
+  
+  // Cast rays around the vision cone to create the polygon shape
+  for (let i = 0; i <= rayCount; i++) {
+    const rayAngle = startAngle + (i / rayCount) * coneAngleRad;
+    
+    // Calculate ray direction vector (normalized)
+    const dirX = Math.cos(rayAngle);
+    const dirY = Math.sin(rayAngle);
+    
+    // Initialize rayLength to the vision distance
+    let rayLength = visionDistance;
+    
+    // Check intersection with each box and update rayLength if needed
+    for (const box of boxes) {
+      const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, box);
+      if (dist !== null && dist < rayLength) {
+        rayLength = dist;
+      }
+    }
+    
+    // Check intersection with other players (AI)
+    for (const otherPlayer of otherPlayers) {
+      if (otherPlayer.id !== player.id) {
+        // Create a box representation of the player for intersection test
+        const playerBox: Box = {
+          ...otherPlayer,
+          width: otherPlayer.size * 2,
+          height: otherPlayer.size * 2,
+          color: 'unused'
+        };
+        
+        const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, playerBox);
+        if (dist !== null && dist < rayLength) {
+          rayLength = dist;
+        }
+      }
+    }
+    
+    // Calculate the endpoint of the ray
+    const endX = player.x + dirX * rayLength;
+    const endY = player.y + dirY * rayLength;
+    
+    // Draw line to the endpoint
+    ctx.lineTo(endX, endY);
+  }
+  
+  // Close the path back to the player position
+  ctx.closePath();
+  
+  // Return the path for later use
+  return ctx.isPointInPath;
 };
 
 // Helper function to draw player
