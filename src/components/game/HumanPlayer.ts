@@ -42,6 +42,13 @@ export const isPlayerBehindAI = (
   return isOutsideCone;
 };
 
+// Interface for player update result, including information about enemy collisions
+export interface PlayerUpdateResult {
+  updatedPlayer: Player;
+  collidedWithAI: boolean;
+  collidingAI?: Player;
+}
+
 // Update player position based on key presses
 export const updatePlayer = (
   player: Player,
@@ -49,7 +56,15 @@ export const updatePlayer = (
   canvas: HTMLCanvasElement | null,
   boxes: Box[] = [],
   ...aiPlayers: Player[]
-): Player => {
+): PlayerUpdateResult => {
+  // If player is already dead, don't process movement
+  if (player.isDead) {
+    return {
+      updatedPlayer: player,
+      collidedWithAI: false
+    };
+  }
+  
   let newX = player.x;
   let newY = player.y;
   let newDirection: Direction = player.direction;
@@ -121,27 +136,38 @@ export const updatePlayer = (
     finalX = boxCollisionResult.x;
     finalY = boxCollisionResult.y;
   }
+    // Check for collisions with each AI player
+  let collidedWithAI = false;
+  let collidingAI: Player | undefined;
   
-  // Check for collisions with each AI player
   for (const aiPlayer of aiPlayers) {
     if (aiPlayer.isDead) continue; // Skip dead AI players
     
     const aiCollisionResult = calculateNonCollidingPosition(finalX, finalY, player, [], aiPlayer);
     if (aiCollisionResult.x !== finalX || aiCollisionResult.y !== finalY) {
-      // We hit an AI player, use the adjusted position
+      // We hit an AI player
+      collidedWithAI = true;
+      collidingAI = aiPlayer;
+      
+      // Still use the adjusted position until game processes the collision
       finalX = aiCollisionResult.x;
       finalY = aiCollisionResult.y;
-      // No need to check further once we've found a collision
       break;
     }
   }
   
-  return {
+  const updatedPlayer = {
     ...player,
     x: finalX,
     y: finalY,
     direction: newDirection,
     rotation: newRotation,
     pulse: (player.pulse + 0.1) % (Math.PI * 2) // Increment pulse for animation
+  };
+  
+  return {
+    updatedPlayer,
+    collidedWithAI,
+    collidingAI
   };
 };

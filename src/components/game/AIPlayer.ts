@@ -263,8 +263,15 @@ export const updateAiPlayer = (
     otherAIPlayers
   );
   
-  // If the AI hits a box or player, choose a new random rotation
-  if (finalX !== newX || finalY !== newY) {
+  // Check if it's specifically a collision with the player
+  const hitPlayer = finalX !== newX || finalY !== newY;
+  const playerDistance = Math.sqrt(
+    Math.pow(aiPlayer.x - player.x, 2) + Math.pow(aiPlayer.y - player.y, 2)
+  );
+  const isPlayerCollision = hitPlayer && playerDistance < aiPlayer.size + player.size + 5;
+  
+  // If the AI hits a box or another AI (but not the player), choose a new random rotation
+  if (hitPlayer && !isPlayerCollision) {
     // Add a random angle change between 90° and 270° (π/2 and 3π/2)
     newRotation += Math.PI / 2 + Math.random() * Math.PI;
     if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;

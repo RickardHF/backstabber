@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Player, AIVision, Direction, Box, AIManagerConfig } from './game/types';
 import { directionColors, aiDirectionColors } from './game/constants';
-import { drawGrid, drawAiVisionCone, drawPlayer, drawBox } from './game/rendering';
+import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { updateAiPlayer } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
@@ -57,7 +57,8 @@ const Game = () => {
     size: 20,
     pulse: 0,
     rotation: 0, // Initially facing right (0 radians)
-    rotationSpeed: 0.1 // Speed of rotation when turning
+    rotationSpeed: 0.1, // Speed of rotation when turning
+    isDead: false
   });
     // AI Manager configuration
   const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
@@ -79,6 +80,22 @@ const Game = () => {
   
   // Track defeated enemies for scoring
   const [defeatedEnemies, setDefeatedEnemies] = useState<number>(0);
+  
+  // Game state management
+  const [gameActive, setGameActive] = useState<boolean>(true);
+  
+  // Track grace period after restart
+  const [graceActive, setGraceActive] = useState<boolean>(false);
+  
+  // Death animation properties
+  const [deathAnimation, setDeathAnimation] = useState<{
+    progress: number;
+    killedBy: Player | null;
+    animationFrameId?: number;
+  }>({
+    progress: 0,
+    killedBy: null
+  });
   
   // Handle attacking AI bots from behind
   const tryAttack = useCallback(() => {
@@ -123,9 +140,15 @@ const Game = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: true }));
       
-      // Check for space bar to attack
+      // Check for space bar
       if (e.key === ' ' || e.code === 'Space') {
-        tryAttack();
+        if (player.isDead && deathAnimation.progress >= 0.95) {
+          // If player is dead and animation is complete, restart the game
+          resetGame();
+        } else if (!player.isDead) {
+          // Otherwise try to attack if not dead
+          tryAttack();
+        }
       }
     };
 
@@ -146,8 +169,140 @@ const Game = () => {
     if (aiManagerRef.current) {
       aiManagerRef.current.updateConfig(aiManagerConfig);
     }
-  }, [aiManagerConfig]);  // Game loop
+  }, [aiManagerConfig]);  // Function to handle player death
+  const handlePlayerDeath = (killingAI: Player) => {
+    // Prevent multiple death triggers if player is already dead
+    if (player.isDead) {
+      return;
+    }
+    
+    // Stop the game loop
+    setGameActive(false);
+    
+    // Mark player as dead
+    setPlayer(prev => ({...prev, isDead: true}));
+    
+    // Play death sound effect
+    try {
+      const deathSound = new Audio('/death-sound.mp3');
+      deathSound.volume = 0.5;
+      deathSound.play().catch(err => console.log('Could not play death sound:', err));
+    } catch (err) {
+      console.log('Could not create audio object:', err);
+    }
+    
+    // Set up death animation
+    const startDeathAnimation = {
+      progress: 0,
+      killedBy: killingAI
+    };
+    
+    setDeathAnimation(startDeathAnimation);
+    
+    // Start death animation loop
+    const animatePlayerDeath = () => {
+      setDeathAnimation(prev => {
+        if (prev.progress < 1) {
+          const newProgress = Math.min(1, prev.progress + 0.02);
+          const animationId = requestAnimationFrame(animatePlayerDeath);
+          return {
+            ...prev,
+            progress: newProgress,
+            animationFrameId: animationId
+          };
+        }
+        return prev;
+      });
+    };
+    
+    requestAnimationFrame(animatePlayerDeath);
+  };
+  // Reset game function
+  const resetGame = () => {
+    // Cancel any ongoing animation
+    if (deathAnimation.animationFrameId) {
+      cancelAnimationFrame(deathAnimation.animationFrameId);
+    }
+    
+    // Clear and re-initialize the AI Manager to prevent immediate collision
+    if (aiManagerRef.current) {
+      // Remove all existing AI bots
+      const aiPlayers = aiManagerRef.current.getAIPlayers();
+      aiPlayers.forEach(ai => aiManagerRef.current?.markAIDead(ai.id));
+      
+      // Re-initialize with a new manager and updated spawn locations after a delay
+      setTimeout(() => {
+        aiManagerRef.current = new AIManager({
+          ...aiManagerConfig,
+          // Force the first bot to spawn far away from the player
+          spawnLocation: { 
+            x: Math.random() > 0.5 ? 100 : 700, // Far left or right
+            y: Math.random() > 0.5 ? 100 : 500  // Far top or bottom
+          },
+          // Add a longer initial delay before first spawn after restart
+          minSpawnDelay: aiManagerConfig.minSpawnDelay + 3000,
+          maxSpawnDelay: aiManagerConfig.maxSpawnDelay + 3000
+        });
+        
+        // Reset spawn delays after first spawn
+        setTimeout(() => {
+          if (aiManagerRef.current) {
+            aiManagerRef.current.updateConfig({
+              minSpawnDelay: aiManagerConfig.minSpawnDelay,
+              maxSpawnDelay: aiManagerConfig.maxSpawnDelay
+            });
+          }
+        }, 5000);
+      }, 1000); // Longer delay to ensure player has time to react
+    }
+      // Reset game state
+    setGameActive(true);
+    
+    // Set grace period active to prevent immediate death after spawn
+    setGraceActive(true);
+    setTimeout(() => {
+      setGraceActive(false);
+    }, 2000); // 2 seconds of grace period
+    
+    setPlayer(prev => ({
+      ...prev,
+      x: 400,
+      y: 300,
+      direction: 'right',
+      rotation: 0,
+      pulse: 0,
+      isDead: false
+    }));
+    
+    // Reset death animation
+    setDeathAnimation({
+      progress: 0,
+      killedBy: null
+    });
+    
+    // Generate new boxes with proper dimensions
+    const canvas = canvasRef.current;
+    if (canvas) {
+      setBoxes(generateRandomBoxes(boxes.length, canvas.width, canvas.height));
+    } else {
+      setBoxes(generateRandomBoxes(boxes.length));
+    }
+    
+    // Play a restart sound if available
+    const restartSound = new Audio('/death-sound.mp3');
+    restartSound.volume = 0.3;
+    restartSound.play().catch(e => console.log('Could not play restart sound', e));
+    
+    // Start grace period
+    setGraceActive(true);
+    setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
+  };
+  
+  // Game loop
   useEffect(() => {
+    // Don't run game loop if game is not active
+    if (!gameActive) return;
+    
     let animationFrameId: number;
     let lastTimestamp = 0;
     
@@ -161,11 +316,19 @@ const Game = () => {
       
       // Update player position with collision detection
       // Pass all AI players for collision detection
-      setPlayer(prevPlayer => 
-        updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers)
-      );
-        // Update all AI players via the manager
-      if (aiManagerRef.current) {
+      setPlayer(prevPlayer => {
+        const result = updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers);        // Check if player collided with an AI bot, isn't already dead and not in grace period
+        if (result.collidedWithAI && result.collidingAI && !prevPlayer.isDead && !graceActive) {
+          // AI bot kills the player
+          setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
+          return { ...result.updatedPlayer, isDead: true };
+        }
+        
+        return result.updatedPlayer;
+      });
+      
+      // Update all AI players via the manager if game is still active
+      if (aiManagerRef.current && gameActive) {
         // Use performance.now() for consistent timing with the AI Manager
         const currentTime = performance.now();
         aiManagerRef.current.updateAllAIPlayers(
@@ -179,8 +342,10 @@ const Game = () => {
       // Render game
       renderGame();
       
-      // Continue the game loop
-      animationFrameId = requestAnimationFrame(gameLoop);
+      // Continue the game loop if game is active
+      if (gameActive && !player.isDead) {
+        animationFrameId = requestAnimationFrame(gameLoop);
+      }
     };
     
     animationFrameId = requestAnimationFrame(gameLoop);
@@ -188,7 +353,7 @@ const Game = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, boxes, aiManagerConfig]);
+  }, [keysPressed, player, boxes, aiManagerConfig, gameActive]);
   
   // Render the game
   const renderGame = () => {
@@ -229,7 +394,7 @@ const Game = () => {
         );
         
         // Check if player is behind this AI and highlight it as vulnerable
-        if (isPlayerBehindAI(player, aiPlayer, aiVision)) {
+        if (!player.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
           // Draw a targeting indicator around the AI
           ctx.beginPath();
           ctx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
@@ -249,9 +414,39 @@ const Game = () => {
       
       // Then draw AI player
       drawPlayer(ctx, aiPlayer);
-    });
-      // Finally draw human player (so it appears on top if they overlap)
-    drawPlayer(ctx, player);
+    });    if (player.isDead) {
+      // Draw death animation instead of normal player
+      drawPlayerDeath(ctx, player, deathAnimation.killedBy, deathAnimation.progress);
+      
+      // For visual effect only - draw a darker overlay when the animation is progressing
+      // The actual UI elements are handled by the React overlay
+      if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 0.95) {
+        const overlayOpacity = (deathAnimation.progress - 0.5) * 2 * 0.5; // 0 to 0.5 opacity
+        ctx.save();
+        ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }    } else {
+      // Draw normal player
+      drawPlayer(ctx, player);
+      
+      // If grace period is active, draw a protective shield around the player
+      if (graceActive) {
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.size + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(64, 196, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([2, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Add shield text
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'lightblue';
+        ctx.textAlign = 'center';
+        ctx.fillText('Shield Active', player.x, player.y - player.size - 10);
+      }
+    }
   };
   return (
     <div className="flex flex-col items-center">
@@ -267,10 +462,27 @@ const Game = () => {
           ref={canvasRef} 
           width={800} 
           height={600}
-        ></canvas>
-        {attackCooldown && (
+        ></canvas>        {attackCooldown && !player.isDead && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded">
             Attack Cooldown
+          </div>
+        )}
+        {graceActive && !player.isDead && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 bg-opacity-70 text-white px-4 py-2 rounded">
+            Shield Active
+          </div>
+        )}
+        {player.isDead && deathAnimation.progress >= 0.95 && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-70">
+            <h2 className="text-4xl font-bold text-red-500 mb-2">GAME OVER</h2>
+            <p className="text-xl text-white mb-6">Killed by AI Bot</p>
+            <button 
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg text-lg transition-colors"
+              onClick={resetGame}
+            >
+              Restart Game
+            </button>
+            <p className="text-sm text-gray-300 mt-4">Press SPACE to restart</p>
           </div>
         )}
       </div>

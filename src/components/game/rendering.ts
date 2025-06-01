@@ -239,3 +239,72 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player) => {
     ctx.stroke();
   }
 };
+
+// Helper function to draw player death animation
+export const drawPlayerDeath = (
+  ctx: CanvasRenderingContext2D, 
+  player: Player, 
+  killerAI: Player | null, 
+  progress: number
+) => {
+  // Save current context
+  ctx.save();
+  
+  // Use progress to create animation effects
+  const deathSize = player.size * (1 + progress * 0.5); // Expand slightly as death progresses
+  const opacity = Math.max(0, 1 - progress); // Fade out as progress increases
+  
+  // Draw expanding red circle (blood splatter effect)
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, deathSize * 2 * progress, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255, 0, 0, ${opacity * 0.5})`;
+  ctx.fill();
+  
+  // Draw the player fading out
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, deathSize, 0, Math.PI * 2);
+  
+  // Get player color and fade it out
+  const colors = directionColors;
+  const baseColor = colors[player.direction];
+  
+  // Parse the RGB values from the color string
+  const rgbMatch = baseColor.match(/\d+/g);
+  if (rgbMatch && rgbMatch.length >= 3) {
+    const [r, g, b] = rgbMatch.map(Number);
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  } else {
+    // Fallback if color parsing fails
+    ctx.fillStyle = `rgba(100, 100, 100, ${opacity})`;
+  }
+  
+  ctx.fill();
+  
+  // Draw the border
+  ctx.strokeStyle = `rgba(0, 0, 0, ${opacity})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  // If close to completion of animation, add text
+  if (progress > 0.5) {
+    const textOpacity = (progress - 0.5) * 2; // Fade in text during second half
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(255, 0, 0, ${textOpacity})`;
+    ctx.fillText('DEAD', player.x, player.y);
+  }
+  
+  // Draw a line connecting the player to the killer AI if available
+  if (killerAI && progress < 0.8) {
+    const lineOpacity = 1 - progress / 0.8;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(killerAI.x, killerAI.y);
+    ctx.strokeStyle = `rgba(255, 0, 0, ${lineOpacity})`;
+    ctx.lineWidth = 2 * (1 - progress);
+    ctx.stroke();
+  }
+  
+  // Restore context
+  ctx.restore();
+};
