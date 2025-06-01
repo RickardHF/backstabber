@@ -313,7 +313,7 @@ const Game = () => {
       
       // Get all active AI players
       const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
-        // Update player position with collision detection
+    // Update player position with collision detection
       // Pass all AI players for collision detection
       setPlayer(prevPlayer => {
         const result = updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers);
