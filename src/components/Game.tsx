@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Player, AIVision, Direction, Box, AIManagerConfig } from './game/types';
-import { directionColors, aiDirectionColors } from './game/constants';
+import { Player, Box, AIManagerConfig } from './game/types';
 import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
-import { updateAiPlayer } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
 
 // Function to generate random boxes
@@ -313,12 +311,9 @@ const Game = () => {
     if (!gameActive) return;
     
     let animationFrameId: number;
-    let lastTimestamp = 0;
     
-    const gameLoop = (timestamp: number) => {
+    const gameLoop = () => {
       // Calculate time passed since last frame for AI Manager
-      const deltaTime = lastTimestamp ? timestamp - lastTimestamp : 0;
-      lastTimestamp = timestamp;
       
       // Get all active AI players
       const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
@@ -596,7 +591,6 @@ const Game = () => {
       
       // The blind spot is the area behind the player
       // It's calculated as the complementary angle of the vision cone
-      const blindSpotAngle = 2 * Math.PI - visionConeAngleRad;
       const blindSpotStartAngle = baseAngle + visionConeAngleRad / 2;
       const blindSpotEndAngle = baseAngle - visionConeAngleRad / 2 + 2 * Math.PI;
       

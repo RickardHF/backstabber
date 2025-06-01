@@ -122,8 +122,6 @@ export const updatePlayer = (
     newY = Math.max(player.size, Math.min(canvas.height - player.size, newY));
   }
     // Check for collisions and adjust position if necessary
-  // Create copy with the new position for collision testing
-  const testPlayer = {...player, x: newX, y: newY};
   
   // Start with the assumption that the position is valid
   let finalX = newX;

@@ -1,5 +1,4 @@
-import { Player, AIVision, AIManagerConfig } from './types';
-import { aiDirectionColors } from './constants';
+import { Player, AIVision, AIManagerConfig, Box } from './types';
 import { updateAiPlayer } from './AIPlayer';
 import { checkPlayerBoxCollision, checkPlayerCollision } from './collision';
 
@@ -23,7 +22,7 @@ export class AIManager {
   updateAllAIPlayers(
     player: Player, 
     canvas: HTMLCanvasElement | null, 
-    boxes: any[], 
+    boxes: Box[], 
     currentTime: number
   ): void {
     // Check if we need to spawn a new AI player
@@ -65,7 +64,7 @@ export class AIManager {
   /**
    * Spawns a new AI player at a collision-free location
    */
-  private spawnAIPlayer(humanPlayer: Player, boxes: any[], canvas: HTMLCanvasElement | null): void {
+  private spawnAIPlayer(humanPlayer: Player, boxes: Box[], canvas: HTMLCanvasElement | null): void {
     // Don't spawn if we're at max capacity
     if (this.aiPlayers.length >= this.config.maxBots) return;
     
@@ -121,7 +120,7 @@ export class AIManager {
   /**
    * Checks if a spawn position is valid (no collisions with boxes, player, or other AI)
    */
-  private isValidSpawnPosition(aiPlayer: Player, humanPlayer: Player, boxes: any[]): boolean {
+  private isValidSpawnPosition(aiPlayer: Player, humanPlayer: Player, boxes: Box[]): boolean {
     // Check if the AI would collide with any box
     const collidingBox = checkPlayerBoxCollision(aiPlayer, boxes);
     if (collidingBox) {

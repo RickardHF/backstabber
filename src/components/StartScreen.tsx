@@ -12,7 +12,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onGameStart }) => {
       <h2 className="text-4xl font-bold mb-6 animate-pulse">Backstabber</h2>
       <p className="text-lg mb-8 max-w-md text-center">
         A stealth game where you must sneak behind AI opponents and take them down.
-        Be careful - they can see you if you're in their vision cone!
+        Be careful - they can see you if you&apos;re in their vision cone!
       </p>
       <button 
         onClick={onGameStart}
