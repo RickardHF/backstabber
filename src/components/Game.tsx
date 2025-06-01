@@ -313,15 +313,23 @@ const Game = () => {
       
       // Get all active AI players
       const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
-      
-      // Update player position with collision detection
+        // Update player position with collision detection
       // Pass all AI players for collision detection
       setPlayer(prevPlayer => {
-        const result = updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers);        // Check if player collided with an AI bot, isn't already dead and not in grace period
+        const result = updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers);
+        
+        // Check if player collided with an AI bot, isn't already dead and not in grace period
         if (result.collidedWithAI && result.collidingAI && !prevPlayer.isDead && !graceActive) {
-          // AI bot kills the player
-          setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
-          return { ...result.updatedPlayer, isDead: true };
+          // Check if the AI vision exists and if player is NOT behind the AI
+          const aiVision = aiManagerRef.current?.getAIVision(result.collidingAI.id);
+          const isPlayerBehind = aiVision ? isPlayerBehindAI(prevPlayer, result.collidingAI, aiVision) : false;
+          
+          // Only kill the player if they collided with an AI from the front (within AI's vision cone)
+          if (!isPlayerBehind) {
+            // AI bot kills the player
+            setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
+            return { ...result.updatedPlayer, isDead: true };
+          }
         }
         
         return result.updatedPlayer;
