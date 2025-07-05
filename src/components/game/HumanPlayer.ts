@@ -1,5 +1,5 @@
 import { Player, Direction, Box, AIVision } from './types';
-import { calculateNonCollidingPosition } from './collision';
+import { calculateNonCollidingPosition, checkPlayerCollision } from './collision';
 
 // Function to check if player is behind an AI bot (outside of vision cone)
 export const isPlayerBehindAI = (
@@ -173,23 +173,36 @@ export const updatePlayer = (
     // We hit a box, use the adjusted position
     finalX = boxCollisionResult.x;
     finalY = boxCollisionResult.y;
-  }
-    // Check for collisions with each AI player
+  }  // Check for collisions with each AI player
   let collidedWithAI = false;
   let collidingAI: Player | undefined;
   
   for (const aiPlayer of aiPlayers) {
     if (aiPlayer.isDead) continue; // Skip dead AI players
     
-    const aiCollisionResult = calculateNonCollidingPosition(finalX, finalY, player, [], aiPlayer);
-    if (aiCollisionResult.x !== finalX || aiCollisionResult.y !== finalY) {
-      // We hit an AI player
+    // Calculate distance between player and AI
+    const distance = Math.sqrt(
+      Math.pow(player.x - aiPlayer.x, 2) + Math.pow(player.y - aiPlayer.y, 2)
+    );
+    
+    // Consider collision if AI is very close to player (touching or nearly touching)
+    const collisionThreshold = player.size + aiPlayer.size + 2; // Small buffer for near-touching
+    const isColliding = distance < collisionThreshold;
+    
+    // Also check traditional collision detection for movement-based collisions
+    const newPositionCollision = calculateNonCollidingPosition(finalX, finalY, player, [], aiPlayer);
+    const hasMovementCollision = newPositionCollision.x !== finalX || newPositionCollision.y !== finalY;
+    
+    if (isColliding || hasMovementCollision) {
+      // We hit an AI player (either by proximity or movement)
       collidedWithAI = true;
       collidingAI = aiPlayer;
       
-      // Still use the adjusted position until game processes the collision
-      finalX = aiCollisionResult.x;
-      finalY = aiCollisionResult.y;
+      // If collision is from movement, use the adjusted position
+      if (hasMovementCollision) {
+        finalX = newPositionCollision.x;
+        finalY = newPositionCollision.y;
+      }
       break;
     }
   }
