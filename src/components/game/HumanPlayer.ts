@@ -49,12 +49,13 @@ export interface PlayerUpdateResult {
   collidingAI?: Player;
 }
 
-// Update player position based on key presses
+// Update player position based on key presses or joystick input
 export const updatePlayer = (
   player: Player,
   keysPressed: { [key: string]: boolean },
   canvas: HTMLCanvasElement | null,
   boxes: Box[] = [],
+  joystickInput: { x: number; y: number } | null | undefined = undefined,
   ...aiPlayers: Player[]
 ): PlayerUpdateResult => {
   // If player is already dead, don't process movement
@@ -64,35 +65,37 @@ export const updatePlayer = (
       collidedWithAI: false
     };
   }
-  
-  let newX = player.x;
+    let newX = player.x;
   let newY = player.y;
   let newDirection: Direction = player.direction;
   let newRotation = player.rotation || 0;
   const rotationSpeed = player.rotationSpeed || 0.05; // Default rotation speed if not set
 
-  // Rotate left with 'a' key
-  if (keysPressed['a']) {
-    newRotation -= rotationSpeed;
-    if (newRotation < 0) newRotation += Math.PI * 2;
+  // Handle joystick input if provided
+  if (joystickInput && (Math.abs(joystickInput.x) > 0.1 || Math.abs(joystickInput.y) > 0.1)) {
+    // Calculate target rotation based on joystick input
+    const targetRotation = Math.atan2(joystickInput.y, joystickInput.x);
     
-    // Update direction based on rotation angle
-    if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-      newDirection = 'right';
-    } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-      newDirection = 'down';
-    } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-      newDirection = 'left';
-    } else {
-      newDirection = 'up';
-    }
-  }
-  
-  // Rotate right with 'd' key
-  if (keysPressed['d']) {
-    newRotation += rotationSpeed;
+    // Smoothly rotate towards the target
+    let rotationDiff = targetRotation - newRotation;
+    
+    // Normalize the rotation difference to [-π, π]
+    while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
+    while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+    
+    // Apply rotation with a smoothing factor
+    const rotationSmoothingFactor = 0.2;
+    newRotation += rotationDiff * rotationSmoothingFactor;
+    
+    // Normalize rotation to [0, 2π]
+    if (newRotation < 0) newRotation += Math.PI * 2;
     if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
     
+    // Move in the direction of the joystick
+    const moveSpeed = Math.sqrt(joystickInput.x * joystickInput.x + joystickInput.y * joystickInput.y);
+    newX += Math.cos(targetRotation) * player.speed * moveSpeed;
+    newY += Math.sin(targetRotation) * player.speed * moveSpeed;
+    
     // Update direction based on rotation angle
     if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
       newDirection = 'right';
@@ -104,17 +107,54 @@ export const updatePlayer = (
       newDirection = 'up';
     }
   }
-  
-  // Move forward with 'w' key
-  if (keysPressed['w']) {
-    newX += Math.cos(newRotation) * player.speed;
-    newY += Math.sin(newRotation) * player.speed;
-  }
-  
-  // Move backward with 's' key
-  if (keysPressed['s']) {
-    newX -= Math.cos(newRotation) * player.speed;
-    newY -= Math.sin(newRotation) * player.speed;
+
+  // Handle keyboard input (only if no joystick input)
+  if (!joystickInput || (Math.abs(joystickInput.x) <= 0.1 && Math.abs(joystickInput.y) <= 0.1)) {
+    // Rotate left with 'a' key
+    if (keysPressed['a']) {
+      newRotation -= rotationSpeed;
+      if (newRotation < 0) newRotation += Math.PI * 2;
+      
+      // Update direction based on rotation angle
+      if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
+        newDirection = 'right';
+      } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
+        newDirection = 'down';
+      } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
+        newDirection = 'left';
+      } else {
+        newDirection = 'up';
+      }
+    }
+    
+    // Rotate right with 'd' key
+    if (keysPressed['d']) {
+      newRotation += rotationSpeed;
+      if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
+      
+      // Update direction based on rotation angle
+      if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
+        newDirection = 'right';
+      } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
+        newDirection = 'down';
+      } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
+        newDirection = 'left';
+      } else {
+        newDirection = 'up';
+      }
+    }
+    
+    // Move forward with 'w' key
+    if (keysPressed['w']) {
+      newX += Math.cos(newRotation) * player.speed;
+      newY += Math.sin(newRotation) * player.speed;
+    }
+    
+    // Move backward with 's' key
+    if (keysPressed['s']) {
+      newX -= Math.cos(newRotation) * player.speed;
+      newY -= Math.sin(newRotation) * player.speed;
+    }
   }
   // Keep player within canvas bounds
   if (canvas) {

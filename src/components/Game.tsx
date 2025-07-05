@@ -3,6 +3,8 @@ import { Player, Box, AIManagerConfig } from './game/types';
 import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { AIManager } from './game/AIManager';
+import MobileControls from './game/MobileControls';
+import { useIsMobile } from './game/useIsMobile';
 
 // Function to generate random boxes
 const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHeight: number = 600): Box[] => {
@@ -99,7 +101,6 @@ const Game = () => {
     progress: 0,
     killedBy: null
   });
-  
   // Handle attacking AI bots from behind
   const tryAttack = useCallback(() => {
     if (attackCooldown || !aiManagerRef.current) return;
@@ -262,8 +263,7 @@ const Game = () => {
     setGraceActive(true);
     setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
   }, [deathAnimation.animationFrameId, aiManagerConfig]);
-  
-  // Initialize boxes and AI Manager when component mounts
+    // Initialize boxes and AI Manager when component mounts
   useEffect(() => {
     setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
     
@@ -273,6 +273,25 @@ const Game = () => {
       aiManagerRef.current = new AIManager(aiManagerConfig);
     }
   }, []);
+    // Mobile controls
+  const isMobile = useIsMobile();
+  const [joystickInput, setJoystickInput] = useState<{ x: number; y: number } | null>(null);
+  
+  // Handle mobile joystick movement
+  const handleJoystickMove = useCallback((direction: { x: number; y: number }) => {
+    // Only set joystick input if there's actual movement
+    if (Math.abs(direction.x) > 0.01 || Math.abs(direction.y) > 0.01) {
+      setJoystickInput(direction);
+    } else {
+      setJoystickInput(null);
+    }
+  }, []);
+  // Handle mobile attack button
+  const handleMobileAttack = useCallback(() => {
+    if (!player.isDead) {
+      tryAttack();
+    }
+  }, [player.isDead, tryAttack]);
     // Track pressed keys
   const [keysPressed, setKeysPressed] = useState<{ [key: string]: boolean }>({});
   
@@ -329,11 +348,16 @@ const Game = () => {
       // Calculate time passed since last frame for AI Manager
       
       // Get all active AI players
-      const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
-    // Update player position with collision detection
+      const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];    // Update player position with collision detection
       // Pass all AI players for collision detection
-      setPlayer(prevPlayer => {
-        const result = updatePlayer(prevPlayer, keysPressed, canvasRef.current, boxes, ...aiPlayers);
+      setPlayer(prevPlayer => {        const result = updatePlayer(
+          prevPlayer, 
+          keysPressed, 
+          canvasRef.current, 
+          boxes, 
+          isMobile ? joystickInput : undefined,
+          ...aiPlayers
+        );
         
         // Check if player collided with an AI bot, isn't already dead and not in grace period
         if (result.collidedWithAI && result.collidingAI && !prevPlayer.isDead && !graceActive) {
@@ -374,11 +398,10 @@ const Game = () => {
     };
     
     animationFrameId = requestAnimationFrame(gameLoop);
-    
-    return () => {
+      return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, boxes, aiManagerConfig, gameActive]);
+  }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile]);
     // Render the game
   const renderGame = () => {
     const canvas = canvasRef.current;
@@ -657,10 +680,18 @@ const Game = () => {
               Restart Game
             </button>
             <p className="text-sm text-gray-300 mt-4">Press SPACE to restart</p>
-          </div>
-        )}
+          </div>        )}
       </div>
-        <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">
+        {/* Mobile Controls */}
+      <MobileControls
+        onMovement={handleJoystickMove}
+        onAttack={handleMobileAttack}
+        isVisible={isMobile && gameActive}
+        attackCooldown={attackCooldown}
+        isPlayerDead={player.isDead || false}
+      />
+      
+      <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">
           <div className="flex flex-col items-start mb-4">
             <h2 className="font-bold mb-3">Game Controls:</h2>
           
@@ -766,15 +797,21 @@ const Game = () => {
                 Kill All Bots
               </button>
             </div>
-          </div>
-        </div>
+          </div>        </div>
         <ul className="list-disc pl-5">
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">W</span> - Move Forward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">S</span> - Move Backward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">A</span> - Rotate Left</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">D</span> - Rotate Right</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> - Attack (Backstab)</li>
-        </ul>        <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-200 dark:border-red-800 rounded-md">
+        </ul>
+        
+        {isMobile && (
+          <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900 dark:bg-opacity-30 border border-blue-200 dark:border-blue-800 rounded-md">
+            <h3 className="font-bold text-sm mb-1">Mobile Controls:</h3>
+            <p className="text-sm">Use the virtual joystick to move your character around and the attack button to backstab enemies. The joystick controls both movement and rotation.</p>
+          </div>
+        )}<div className="mt-4 p-3 bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-200 dark:border-red-800 rounded-md">
           <h3 className="font-bold text-sm mb-1">Backstabbing Mechanics:</h3>
           <p className="text-sm">Get behind AI bots (outside their vision cone) and press <span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> to defeat them with a backstab. When an AI is vulnerable, a red dashed circle will appear around it.</p>
         </div>
