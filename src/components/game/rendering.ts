@@ -1,5 +1,6 @@
 import { Player, Box } from './types';
 import { directionColors, aiDirectionColors } from './constants';
+import { CharacterSprite, createCharacterSprite, createCharacterSpriteFromImage } from './sprites';
 
 // Helper function to draw grid
 export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
@@ -266,8 +267,77 @@ export const drawPlayerVisionCone = (
   return ctx.isPointInPath;
 };
 
-// Helper function to draw player
-export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player) => {
+// Initialize sprite system
+let characterSprite: CharacterSprite | null = null;
+let lastUpdateTime: number = 0;
+
+// Initialize character sprite on first use
+const initializeSprite = () => {
+  if (!characterSprite) {
+    // Try to use image file first, fallback to procedural generation
+    characterSprite = createCharacterSpriteFromImage('/character-sprite.png', {
+      frameWidth: 32,
+      frameHeight: 32,
+      frameCount: 4,
+      animationSpeed: 8
+    });
+  }
+};
+
+// Helper function to draw player with sprite
+export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites: boolean = true) => {
+  if (useSprites) {
+    // Initialize sprite system if needed
+    initializeSprite();
+    
+    // Calculate delta time for animation
+    const currentTime = Date.now();
+    const deltaTime = currentTime - lastUpdateTime;
+    lastUpdateTime = currentTime;
+    
+    // Use sprite rendering
+    if (characterSprite) {
+      characterSprite.render(ctx, p, deltaTime, p.isAI || false);
+      
+      // Draw direction indicator line if moving
+      if (p.direction !== 'none') {
+        ctx.beginPath();
+        
+        // Starting point is the center of the player
+        const indicatorLength = p.size + 15;
+        
+        // Use rotation property to determine the direction of the indicator
+        const rotation = p.rotation || 0;
+        const endX = p.x + Math.cos(rotation) * indicatorLength;
+        const endY = p.y + Math.sin(rotation) * indicatorLength;
+        
+        // Draw main line indicator
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(endX, endY);
+        
+        // Add arrowhead
+        const arrowSize = 6;
+        const angle = Math.atan2(endY - p.y, endX - p.x);
+        ctx.lineTo(
+          endX - arrowSize * Math.cos(angle - Math.PI / 6),
+          endY - arrowSize * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(
+          endX - arrowSize * Math.cos(angle + Math.PI / 6),
+          endY - arrowSize * Math.sin(angle + Math.PI / 6)
+        );
+        
+        ctx.strokeStyle = p.isAI ? '#FF4444' : '#4444FF';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      
+      return; // Skip the old circle rendering
+    }
+  }
+  
+  // Fallback to original circle rendering
   // Choose color based on direction
   const colors = p.isAI ? aiDirectionColors : directionColors;
   const pulseSize = p.size + Math.sin(p.pulse) * 2;
@@ -315,8 +385,7 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player) => {
       endX - arrowSize * Math.cos(angle + Math.PI / 6),
       endY - arrowSize * Math.sin(angle + Math.PI / 6)
     );
-    
-    ctx.strokeStyle = p.isAI ? '#333333' : '#000000';
+      ctx.strokeStyle = p.isAI ? '#333333' : '#000000';
     ctx.lineWidth = 3;
     ctx.stroke();
   }
