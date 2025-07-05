@@ -68,7 +68,7 @@ export const checkPlayerCollision = (player1: Player, player2: Player): boolean 
   return distance < minDistance;
 };
 
-// Function to prevent movement into colliding objects
+// Function to prevent movement into colliding objects with wall sliding
 export const calculateNonCollidingPosition = (
   newX: number, 
   newY: number, 
@@ -84,19 +84,15 @@ export const calculateNonCollidingPosition = (
     y: newY
   };
 
-  // Check for box collisions
+  // Check for box collisions with wall sliding
   const collidingBox = checkPlayerBoxCollision(testPlayer, boxes);
   if (collidingBox) {
-    // If collision detected, prevent movement by returning original position
-    return {
-      x: player.x,
-      y: player.y
-    };
+    return calculateWallSlidePosition(player.x, player.y, newX, newY, player, boxes);
   }
 
   // Check for player collision if another player exists
   if (otherPlayer && checkPlayerCollision(testPlayer, otherPlayer)) {
-    // If players would collide, prevent movement by returning original position
+    // For player collisions, still use the old behavior (no sliding)
     return {
       x: player.x,
       y: player.y
@@ -110,7 +106,7 @@ export const calculateNonCollidingPosition = (
       if (aiPlayer.id === player.id || aiPlayer.isDead) continue;
       
       if (checkPlayerCollision(testPlayer, aiPlayer)) {
-        // If players would collide, prevent movement by returning original position
+        // For AI player collisions, still use the old behavior (no sliding)
         return {
           x: player.x,
           y: player.y
@@ -124,4 +120,51 @@ export const calculateNonCollidingPosition = (
     x: newX,
     y: newY
   };
+};
+
+// Function to calculate wall sliding position
+export const calculateWallSlidePosition = (
+  currentX: number,
+  currentY: number,
+  targetX: number,
+  targetY: number,
+  player: Player,
+  boxes: Box[]
+): { x: number, y: number } => {
+  // Try horizontal movement only
+  let testPlayerX: Player = {
+    ...player,
+    x: targetX,
+    y: currentY
+  };
+  
+  // Try vertical movement only
+  let testPlayerY: Player = {
+    ...player,
+    x: currentX,
+    y: targetY
+  };
+  
+  const hasHorizontalCollision = checkPlayerBoxCollision(testPlayerX, boxes) !== null;
+  const hasVerticalCollision = checkPlayerBoxCollision(testPlayerY, boxes) !== null;
+  
+  // If neither horizontal nor vertical movement alone would cause collision,
+  // there might be a corner collision, so allow the movement that's safer
+  if (!hasHorizontalCollision && !hasVerticalCollision) {
+    // Both movements are safe individually, so the original target is safe
+    return { x: targetX, y: targetY };
+  }
+  
+  // If only horizontal movement causes collision, allow vertical sliding
+  if (hasHorizontalCollision && !hasVerticalCollision) {
+    return { x: currentX, y: targetY };
+  }
+  
+  // If only vertical movement causes collision, allow horizontal sliding
+  if (!hasHorizontalCollision && hasVerticalCollision) {
+    return { x: targetX, y: currentY };
+  }
+  
+  // Both movements cause collision, stay in place
+  return { x: currentX, y: currentY };
 };
