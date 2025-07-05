@@ -125,60 +125,14 @@ const Game = () => {
       }
     }
   }, [player, attackCooldown]);
-      // Initialize boxes and AI Manager when component mounts
-  useEffect(() => {
-    setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
-    
-    // Initialize AI Manager
-    if (!aiManagerRef.current) {
-      console.log("Initializing AI Manager with config:", aiManagerConfig);
-      aiManagerRef.current = new AIManager(aiManagerConfig);
-    }
-  }, []);
-  
-  // Track pressed keys
-  const [keysPressed, setKeysPressed] = useState<{ [key: string]: boolean }>({});
-  // Handle key events
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: true }));
-      
-      // Check for space bar
-      if (e.key === ' ' || e.code === 'Space') {
-        if (player.isDead && deathAnimation.progress >= 0.95) {
-          // If player is dead and animation is complete, restart the game
-          resetGame();
-        } else if (!player.isDead) {
-          // Otherwise try to attack if not dead
-          tryAttack();
-        }
-      }
-    };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: false }));
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [tryAttack]);
-  // Update AI Manager config when maxBots or spawnLocation changes
-  useEffect(() => {
-    if (aiManagerRef.current) {
-      aiManagerRef.current.updateConfig(aiManagerConfig);
-    }
-  }, [aiManagerConfig]);  // Function to handle player death
+  // Function to handle player death
   const handlePlayerDeath = (killingAI: Player) => {
     // Prevent multiple death triggers if player is already dead
     if (player.isDead) {
       return;
     }
-      // Stop the game loop
+    // Stop the game loop
     setGameActive(false);
     
     // Mark player as dead
@@ -218,8 +172,10 @@ const Game = () => {
     };
     
     requestAnimationFrame(animatePlayerDeath);
-  };  // Reset game function
-  const resetGame = () => {
+  };  
+
+  // Reset game function - moved up to be defined before it's used in dependencies
+  const resetGame = useCallback(() => {
     // Cancel any ongoing animation
     if (deathAnimation.animationFrameId) {
       cancelAnimationFrame(deathAnimation.animationFrameId);
@@ -259,7 +215,8 @@ const Game = () => {
         }, 5000);
       }, 1000); // Longer delay to ensure player has time to react
     }
-      // Reset game state
+    
+    // Reset game state
     setGameActive(true);
     
     // Set grace period active to prevent immediate death after spawn
@@ -267,7 +224,8 @@ const Game = () => {
     setTimeout(() => {
       setGraceActive(false);
     }, 2000); // 2 seconds of grace period
-      setPlayer(prev => ({
+    
+    setPlayer(prev => ({
       ...prev,
       x: 400,
       y: 300,
@@ -303,9 +261,64 @@ const Game = () => {
     // Start grace period
     setGraceActive(true);
     setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
-  };
+  }, [deathAnimation.animationFrameId, aiManagerConfig]);
   
-  // Game loop
+  // Initialize boxes and AI Manager when component mounts
+  useEffect(() => {
+    setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
+    
+    // Initialize AI Manager
+    if (!aiManagerRef.current) {
+      console.log("Initializing AI Manager with config:", aiManagerConfig);
+      aiManagerRef.current = new AIManager(aiManagerConfig);
+    }
+  }, []);
+    // Track pressed keys
+  const [keysPressed, setKeysPressed] = useState<{ [key: string]: boolean }>({});
+  
+  // Handle key events
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: true }));
+      
+      // Check for space bar
+      if (e.key === ' ' || e.code === 'Space') {
+        // Prevent default space bar behavior (page scrolling)
+        e.preventDefault();
+        
+        if (player.isDead && deathAnimation.progress >= 0.95) {
+          // If player is dead and animation is complete, restart the game
+          resetGame();
+        } else if (!player.isDead) {
+          // Otherwise try to attack if not dead
+          tryAttack();
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      setKeysPressed((prev: { [key: string]: boolean }) => ({ ...prev, [e.key.toLowerCase()]: false }));
+      
+      // Prevent default for spacebar on keyup as well
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [tryAttack, player.isDead, deathAnimation.progress, resetGame]);
+  // Update AI Manager config when maxBots or spawnLocation changes
+  useEffect(() => {
+    if (aiManagerRef.current) {
+      aiManagerRef.current.updateConfig(aiManagerConfig);
+    }
+  }, [aiManagerConfig]);    // Game loop
   useEffect(() => {
     // Don't run game loop if game is not active
     if (!gameActive) return;
