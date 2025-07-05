@@ -5,6 +5,8 @@ import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { AIManager } from './game/AIManager';
 import MobileControls from './game/MobileControls';
 import { useIsMobile } from './game/useIsMobile';
+import { useFullscreen } from './game/useFullscreen';
+import { useOrientation } from './game/useOrientation';
 
 // Function to generate random boxes
 const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHeight: number = 600): Box[] => {
@@ -275,8 +277,27 @@ const Game = () => {
   }, []);
     // Mobile controls
   const isMobile = useIsMobile();
+  const orientation = useOrientation();
+  const gameContainerRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useFullscreen(gameContainerRef);
+  
   const [joystickInput, setJoystickInput] = useState<{ x: number; y: number } | null>(null);
   
+  // Auto-enter fullscreen for mobile landscape
+  useEffect(() => {
+    if (isMobile && orientation.isLandscape && !fullscreen.isFullscreen && fullscreen.isSupported) {
+      // Small delay to ensure the orientation change is complete
+      setTimeout(() => {
+        fullscreen.enterFullscreen();
+      }, 100);
+    }
+  }, [isMobile, orientation.isLandscape, fullscreen.isFullscreen, fullscreen.isSupported, fullscreen.enterFullscreen]);
+  
+  // Handle fullscreen button click
+  const handleFullscreenToggle = useCallback(() => {
+    fullscreen.toggleFullscreen();
+  }, [fullscreen.toggleFullscreen]);
+
   // Handle mobile joystick movement
   const handleJoystickMove = useCallback((direction: { x: number; y: number }) => {
     // Only set joystick input if there's actual movement
@@ -644,22 +665,34 @@ const Game = () => {
       
       ctx.restore();
     }
-  };
-  return (
-    <div className="flex flex-col items-center">
-      <div className="flex items-center justify-between w-full max-w-2xl mb-4">
-        <h1 className="text-2xl font-bold">Backstabber Game</h1>
-        <div className="flex items-center">
-          <span className="mr-2 font-bold">Defeated:</span>
-          <span className="bg-red-500 text-white px-3 py-1 rounded-md">{defeatedEnemies}</span>
+  };  return (    <div ref={gameContainerRef} className="flex flex-col items-center w-full max-w-screen-xl mx-auto p-2 md:p-4 mobile-landscape-game">
+      <div className="flex items-center justify-between w-full mb-2 md:mb-4 game-header">        <h1 className="text-lg md:text-xl lg:text-2xl font-bold">Backstabber Game</h1>
+        <div className="flex items-center gap-2">
+          <span className="mr-1 md:mr-2 font-bold text-xs md:text-sm lg:text-base">Defeated:</span>
+          <span className="bg-red-500 text-white px-1 md:px-2 lg:px-3 py-1 rounded-md text-xs md:text-sm lg:text-base">{defeatedEnemies}</span>
+          {isMobile && fullscreen.isSupported && (
+            <button
+              onClick={handleFullscreenToggle}
+              className="p-1 md:p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs md:text-sm transition-colors"
+              title={fullscreen.isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {fullscreen.isFullscreen ? "⛶" : "⛶"}
+            </button>
+          )}
         </div>
-      </div>
-      <div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg">
+      </div><div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg w-full flex justify-center">
         <canvas 
           ref={canvasRef} 
           width={800} 
           height={600}
-        ></canvas>        {attackCooldown && !player.isDead && (
+          className="game-canvas block"
+          style={{ 
+            width: 'min(100vw - 2rem, 100%, 800px)',
+            height: 'auto',
+            aspectRatio: '4/3',
+            maxHeight: 'min(75vh, 600px)'
+          }}
+        ></canvas>{attackCooldown && !player.isDead && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded">
             Attack Cooldown
           </div>
@@ -681,17 +714,18 @@ const Game = () => {
             </button>
             <p className="text-sm text-gray-300 mt-4">Press SPACE to restart</p>
           </div>        )}
-      </div>
-        {/* Mobile Controls */}
+      </div>        {/* Mobile Controls */}
       <MobileControls
         onMovement={handleJoystickMove}
         onAttack={handleMobileAttack}
         isVisible={isMobile && gameActive}
         attackCooldown={attackCooldown}
         isPlayerDead={player.isDead || false}
+        onFullscreenToggle={handleFullscreenToggle}
+        isFullscreen={fullscreen.isFullscreen}
+        fullscreenSupported={fullscreen.isSupported}
       />
-      
-      <div className="mt-6 p-4 bg-gray-100 dark:bg-zinc-800 rounded-md max-w-2xl shadow-md">
+      <div className="mt-2 md:mt-6 p-2 md:p-4 bg-gray-100 dark:bg-zinc-800 rounded-md w-full max-w-4xl shadow-md game-controls">
           <div className="flex flex-col items-start mb-4">
             <h2 className="font-bold mb-3">Game Controls:</h2>
           
@@ -704,13 +738,13 @@ const Game = () => {
                 min="1" 
                 max="10" 
                 defaultValue="2" 
-                className="w-24 accent-blue-500 dark:accent-blue-400"
+                className="w-16 md:w-24 accent-blue-500 dark:accent-blue-400"
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBoxes(generateRandomBoxes(parseInt(e.target.value)))}
               />
               <span className="text-sm">{boxes.length}</span>
             </div>
             <button 
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+              className="bg-blue-500 text-white px-3 md:px-4 py-1 md:py-2 text-sm md:text-base rounded hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
               onClick={() => setBoxes(generateRandomBoxes(boxes.length))}
             >
               Regenerate Boxes
@@ -729,7 +763,7 @@ const Game = () => {
                   min="1" 
                   max="4" 
                   value={aiManagerConfig.maxBots}
-                  className="w-24 accent-blue-500 dark:accent-blue-400"
+                  className="w-16 md:w-24 accent-blue-500 dark:accent-blue-400"
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
                     ...aiManagerConfig,
                     maxBots: parseInt(e.target.value)
@@ -747,7 +781,7 @@ const Game = () => {
                   max="10000" 
                   step="500" 
                   value={aiManagerConfig.minSpawnDelay}
-                  className="w-20 px-2 py-1 border rounded"
+                  className="w-16 md:w-20 px-2 py-1 border rounded text-sm"
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
                     ...aiManagerConfig,
                     minSpawnDelay: parseInt(e.target.value)
@@ -764,7 +798,7 @@ const Game = () => {
                   max="20000"
                   step="500" 
                   value={aiManagerConfig.maxSpawnDelay}
-                  className="w-20 px-2 py-1 border rounded"
+                  className="w-16 md:w-20 px-2 py-1 border rounded text-sm"
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
                     ...aiManagerConfig,
                     maxSpawnDelay: parseInt(e.target.value)
@@ -787,7 +821,7 @@ const Game = () => {
               </div>
               
               <button 
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+                className="bg-red-500 text-white px-3 md:px-4 py-1 md:py-2 text-sm md:text-base rounded hover:bg-red-600 transition-colors"
                 onClick={() => {
                   // Find all AI players and mark them as dead
                   const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
@@ -797,7 +831,7 @@ const Game = () => {
                 Kill All Bots
               </button>
             </div>
-          </div>        </div>
+          </div></div>
         <ul className="list-disc pl-5">
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">W</span> - Move Forward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">S</span> - Move Backward</li>

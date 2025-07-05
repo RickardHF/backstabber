@@ -18,8 +18,8 @@ export const useIsMobile = (): boolean => {
         userAgent.includes(keyword)
       );
       
-      // Check for small screen size
-      const isSmallScreen = window.innerWidth <= 768;
+      // Check for small screen size - more generous for tablets
+      const isSmallScreen = window.innerWidth <= 1024 && window.innerHeight <= 1024;
       
       // Consider it mobile if it has touch AND (is mobile user agent OR small screen)
       setIsMobile(hasTouch && (isMobileUserAgent || isSmallScreen));

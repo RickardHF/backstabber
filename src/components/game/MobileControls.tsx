@@ -1,4 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useIsMobile } from './useIsMobile';
+import { useOrientation } from './useOrientation';
 
 interface MobileControlsProps {
   onMovement: (direction: { x: number; y: number }) => void;
@@ -6,6 +8,9 @@ interface MobileControlsProps {
   isVisible: boolean;
   attackCooldown: boolean;
   isPlayerDead: boolean;
+  onFullscreenToggle?: () => void;
+  isFullscreen?: boolean;
+  fullscreenSupported?: boolean;
 }
 
 interface JoystickProps {
@@ -20,7 +25,32 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size }) => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [touchId, setTouchId] = useState<number | null>(null);
   
-  const maxDistance = size / 2 - 20; // 20px is half the knob size
+  // Responsive size based on screen orientation
+  const [responsiveSize, setResponsiveSize] = useState(size);
+  
+  useEffect(() => {
+    const updateSize = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const isSmallHeight = window.innerHeight < 600;
+      
+      if (isLandscape && isSmallHeight) {
+        setResponsiveSize(Math.min(size * 0.7, 70)); // Smaller in landscape
+      } else {
+        setResponsiveSize(size);
+      }
+    };
+    
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    window.addEventListener('orientationchange', updateSize);
+    
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      window.removeEventListener('orientationchange', updateSize);
+    };
+  }, [size]);
+  
+  const maxDistance = responsiveSize / 2 - 20; // 20px is half the knob size
     const handleStart = (clientX: number, clientY: number, touchIdentifier?: number) => {
     setIsDragging(true);
     if (touchIdentifier !== undefined) {
@@ -125,11 +155,10 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size }) => {
   
   return (
     <div
-      ref={joystickRef}
-      className="relative bg-gray-800 bg-opacity-50 border-2 border-gray-600 rounded-full select-none"
+      ref={joystickRef}      className="relative bg-gray-800 bg-opacity-50 border-2 border-gray-600 rounded-full select-none mobile-joystick"
       style={{
-        width: size,
-        height: size,
+        width: responsiveSize,
+        height: responsiveSize,
         touchAction: 'none'
       }}
       onMouseDown={handleMouseDown}
@@ -156,31 +185,58 @@ const MobileControls: React.FC<MobileControlsProps> = ({
   onAttack,
   isVisible,
   attackCooldown,
-  isPlayerDead
+  isPlayerDead,
+  onFullscreenToggle,
+  isFullscreen,
+  fullscreenSupported
 }) => {
-  if (!isVisible) return null;
+  const isMobile = useIsMobile();
+  const orientation = useOrientation();
   
-  return (
-    <div className="fixed bottom-4 left-0 right-0 flex justify-between items-end px-4 pointer-events-none z-10">      {/* Joystick */}
-      <div className="pointer-events-auto" style={{ touchAction: 'none' }}>
-        <Joystick 
+  if (!isVisible) return null;
+    return (
+    <div className="fixed bottom-2 md:bottom-4 left-0 right-0 flex justify-between items-end px-2 md:px-4 pointer-events-none z-50 safe-area-inset mobile-controls">
+      {/* Joystick */}      <div className="pointer-events-auto" style={{ touchAction: 'none' }}>        <Joystick 
           onMove={onMovement} 
-          size={120}
+          size={80}
         />
-        <div className="text-center mt-2 text-white text-sm font-medium drop-shadow-lg">
+        <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
           Move
         </div>
-      </div>        {/* Attack Button */}
+      </div>
+      
+      {/* Center controls for landscape */}
+      {orientation.isLandscape && onFullscreenToggle && fullscreenSupported && (
+        <div className="pointer-events-auto flex items-center">
+          <button
+            onClick={onFullscreenToggle}
+            className="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs transition-colors mr-2"
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+          >
+            {isFullscreen ? "⛶" : "⛶"}
+          </button>
+        </div>
+      )}
+      
+      {/* Attack Button */}
       <div className="pointer-events-auto" style={{ touchAction: 'manipulation' }}>        <button
+        />
+        <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
+          Move
+        </div>
+      </div>
+      
+      {/* Attack Button */}
+      <div className="pointer-events-auto" style={{ touchAction: 'manipulation' }}>
+        <button
           onPointerDown={(e) => {
             e.preventDefault();
             if (!attackCooldown && !isPlayerDead) {
               onAttack();
             }
           }}
-          disabled={attackCooldown || isPlayerDead}
-          className={`
-            w-16 h-16 rounded-full text-white font-bold text-lg shadow-lg border-2 transition-all
+          disabled={attackCooldown || isPlayerDead}          className={`
+            w-12 h-12 md:w-16 md:h-16 rounded-full text-white font-bold text-base md:text-lg shadow-lg border-2 transition-all mobile-attack-button
             ${attackCooldown || isPlayerDead
               ? 'bg-gray-500 border-gray-400 cursor-not-allowed opacity-50'
               : 'bg-red-600 border-red-400 hover:bg-red-700 active:bg-red-800 active:scale-95'
@@ -190,7 +246,7 @@ const MobileControls: React.FC<MobileControlsProps> = ({
         >
           ⚔️
         </button>
-        <div className="text-center mt-2 text-white text-sm font-medium drop-shadow-lg">
+        <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
           Attack
         </div>
       </div>
