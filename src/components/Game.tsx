@@ -669,14 +669,14 @@ const Game = () => {
       <div className="flex items-center justify-between w-full mb-2 md:mb-4 game-header">        <h1 className="text-lg md:text-xl lg:text-2xl font-bold">Backstabber Game</h1>
         <div className="flex items-center gap-2">
           <span className="mr-1 md:mr-2 font-bold text-xs md:text-sm lg:text-base">Defeated:</span>
-          <span className="bg-red-500 text-white px-1 md:px-2 lg:px-3 py-1 rounded-md text-xs md:text-sm lg:text-base">{defeatedEnemies}</span>
-          {isMobile && fullscreen.isSupported && (
+          <span className="bg-red-500 text-white px-1 md:px-2 lg:px-3 py-1 rounded-md text-xs md:text-sm lg:text-base">{defeatedEnemies}</span>          {isMobile && fullscreen.isSupported && (
             <button
               onClick={handleFullscreenToggle}
-              className="p-1 md:p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs md:text-sm transition-colors"
+              className="p-1 md:p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs md:text-sm transition-colors flex items-center gap-1"
               title={fullscreen.isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
             >
-              {fullscreen.isFullscreen ? "⛶" : "⛶"}
+              <span>{fullscreen.isFullscreen ? "⊖" : "⊞"}</span>
+              <span className="hidden md:inline">{fullscreen.isFullscreen ? "Exit" : "Full"}</span>
             </button>
           )}
         </div>

@@ -193,30 +193,18 @@ const MobileControls: React.FC<MobileControlsProps> = ({
   const isMobile = useIsMobile();
   const orientation = useOrientation();
   
-  if (!isVisible) return null;
-    return (
+  if (!isVisible) return null;    return (
     <div className="fixed bottom-2 md:bottom-4 left-0 right-0 flex justify-between items-end px-2 md:px-4 pointer-events-none z-50 safe-area-inset mobile-controls">
       {/* Joystick */}      <div className="pointer-events-auto" style={{ touchAction: 'none' }}>        <Joystick 
           onMove={onMovement} 
           size={80}
         />
-        <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
-          Move
-        </div>
+        {!isFullscreen && (
+          <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
+            Move
+          </div>
+        )}
       </div>
-      
-      {/* Center controls for landscape */}
-      {orientation.isLandscape && onFullscreenToggle && fullscreenSupported && (
-        <div className="pointer-events-auto flex items-center">
-          <button
-            onClick={onFullscreenToggle}
-            className="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs transition-colors mr-2"
-            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-          >
-            {isFullscreen ? "⛶" : "⛶"}
-          </button>
-        </div>
-      )}
       
       {/* Attack Button */}
       <div className="pointer-events-auto" style={{ touchAction: 'manipulation' }}>        <button
@@ -242,13 +230,14 @@ const MobileControls: React.FC<MobileControlsProps> = ({
               : 'bg-red-600 border-red-400 hover:bg-red-700 active:bg-red-800 active:scale-95'
             }
           `}
-          style={{ touchAction: 'manipulation' }}
-        >
+          style={{ touchAction: 'manipulation' }}        >
           ⚔️
         </button>
-        <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
-          Attack
-        </div>
+        {!isFullscreen && (
+          <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
+            Attack
+          </div>
+        )}
       </div>
     </div>
   );
