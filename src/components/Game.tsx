@@ -7,54 +7,19 @@ import MobileControls from './game/MobileControls';
 import { useIsMobile } from './game/useIsMobile';
 import { useFullscreen } from './game/useFullscreen';
 import { useOrientation } from './game/useOrientation';
-
-// Function to generate random boxes
-const generateRandomBoxes = (count: number, canvasWidth: number = 800, canvasHeight: number = 600): Box[] => {
-  const boxes: Box[] = [];
-  const minSize = 40;
-  const maxSize = 80;
-  
-  for (let i = 0; i < count; i++) {
-    // Random size between minSize and maxSize
-    const width = Math.floor(Math.random() * (maxSize - minSize)) + minSize;
-    const height = Math.floor(Math.random() * (maxSize - minSize)) + minSize;
-    
-    // Random position, ensuring box is fully within canvas
-    const x = Math.floor(Math.random() * (canvasWidth - width)) + width/2;
-    const y = Math.floor(Math.random() * (canvasHeight - height)) + height/2;
-    
-    // Random color
-    const r = Math.floor(Math.random() * 200) + 50;
-    const g = Math.floor(Math.random() * 200) + 50;
-    const b = Math.floor(Math.random() * 200) + 50;
-    const color = `rgb(${r}, ${g}, ${b})`;
-    
-    boxes.push({
-      id: `box-${i}`,
-      x,
-      y,
-      width,
-      height,
-      color,
-      direction: 'none',
-      speed: 0,
-      size: Math.max(width, height) / 2,
-      pulse: Math.random() * Math.PI * 2, // Random starting pulse phase
-      rotation: 0,
-      rotationSpeed: 0
-    });
-  }
-  
-  return boxes;
-};
+import { generateMapLayout, getUserSpawnPoint, MAP_CONFIG } from './game/MapLayout';
 
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  // Get user spawn point from map layout
+  const userSpawn = getUserSpawnPoint();
+  
   // Human-controlled player
   const [player, setPlayer] = useState<Player>({
     id: 'player1',
-    x: 400,
-    y: 300,
+    x: userSpawn.x,
+    y: userSpawn.y,
     direction: 'right',
     speed: 3,
     size: 20,
@@ -66,11 +31,10 @@ const Game = () => {
       visionConeAngle: 220, // Same 220-degree field of view as AI
       visionDistance: 40 * 5 // 5x the body size - slightly larger than AI
     }
-  });
-    // AI Manager configuration
+  });    // AI Manager configuration
   const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
     maxBots: 2, // Default to 2 bots maximum
-    spawnLocation: { x: 200, y: 200 }, // Default spawn location
+    spawnLocation: { x: 200, y: 200 }, // This will be overridden by the MapLayout system
     minSpawnDelay: 3000, // Min 3 seconds between spawns
     maxSpawnDelay: 6000, // Max 6 seconds between spawns
     enabled: true // AI spawning enabled by default
@@ -79,7 +43,7 @@ const Game = () => {
   // AI Manager reference
   const aiManagerRef = useRef<AIManager | null>(null);
   
-  // Create boxes (obstacles)
+  // Create walls using the fixed map layout
   const [boxes, setBoxes] = useState<Box[]>([]);
   
   // Track attack cooldown
@@ -176,7 +140,6 @@ const Game = () => {
     
     requestAnimationFrame(animatePlayerDeath);
   };  
-
   // Reset game function - moved up to be defined before it's used in dependencies
   const resetGame = useCallback(() => {
     // Cancel any ongoing animation
@@ -197,11 +160,8 @@ const Game = () => {
       setTimeout(() => {
         aiManagerRef.current = new AIManager({
           ...aiManagerConfig,
-          // Force the first bot to spawn far away from the player
-          spawnLocation: { 
-            x: Math.random() > 0.5 ? 100 : 700, // Far left or right
-            y: Math.random() > 0.5 ? 100 : 500  // Far top or bottom
-          },
+          // The AIManager will use the MapLayout system for spawn points
+          spawnLocation: { x: 0, y: 0 }, // This will be ignored by the new system
           // Add a longer initial delay before first spawn after restart
           minSpawnDelay: aiManagerConfig.minSpawnDelay + 3000,
           maxSpawnDelay: aiManagerConfig.maxSpawnDelay + 3000
@@ -228,10 +188,12 @@ const Game = () => {
       setGraceActive(false);
     }, 2000); // 2 seconds of grace period
     
+    // Reset player to user spawn point
+    const userSpawn = getUserSpawnPoint();
     setPlayer(prev => ({
       ...prev,
-      x: 400,
-      y: 300,
+      x: userSpawn.x,
+      y: userSpawn.y,
       direction: 'right',
       rotation: 0,
       pulse: 0,
@@ -248,12 +210,12 @@ const Game = () => {
       killedBy: null
     });
     
-    // Generate new boxes with proper dimensions
+    // Generate new map layout
     const canvas = canvasRef.current;
     if (canvas) {
-      setBoxes(generateRandomBoxes(boxes.length, canvas.width, canvas.height));
+      setBoxes(generateMapLayout(canvas.width, canvas.height));
     } else {
-      setBoxes(generateRandomBoxes(boxes.length));
+      setBoxes(generateMapLayout());
     }
     
     // Play a restart sound if available
@@ -264,10 +226,9 @@ const Game = () => {
     // Start grace period
     setGraceActive(true);
     setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
-  }, [deathAnimation.animationFrameId, aiManagerConfig]);
-    // Initialize boxes and AI Manager when component mounts
+  }, [deathAnimation.animationFrameId, aiManagerConfig]);    // Initialize map layout and AI Manager when component mounts
   useEffect(() => {
-    setBoxes(generateRandomBoxes(2)); // Generate 2 random boxes
+    setBoxes(generateMapLayout()); // Generate the fixed map layout
     
     // Initialize AI Manager
     if (!aiManagerRef.current) {
@@ -726,28 +687,25 @@ const Game = () => {
         fullscreenSupported={fullscreen.isSupported}
       />
       <div className="mt-2 md:mt-6 p-2 md:p-4 bg-gray-100 dark:bg-zinc-800 rounded-md w-full max-w-4xl shadow-md game-controls">
-          <div className="flex flex-col items-start mb-4">
-            <h2 className="font-bold mb-3">Game Controls:</h2>
+          <div className="flex flex-col items-start mb-4">          <h2 className="font-bold mb-3">Game Controls:</h2>
           
           <div className="flex flex-wrap items-center gap-4 mb-3">
             <div className="flex items-center gap-2">
-              <label htmlFor="boxCount" className="text-sm">Box Count:</label>
-              <input 
-                type="range" 
-                id="boxCount" 
-                min="1" 
-                max="10" 
-                defaultValue="2" 
-                className="w-16 md:w-24 accent-blue-500 dark:accent-blue-400"
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBoxes(generateRandomBoxes(parseInt(e.target.value)))}
-              />
-              <span className="text-sm">{boxes.length}</span>
+              <span className="text-sm">Fixed Map Layout:</span>
+              <span className="text-sm text-green-600 dark:text-green-400">{boxes.length} walls</span>
             </div>
             <button 
               className="bg-blue-500 text-white px-3 md:px-4 py-1 md:py-2 text-sm md:text-base rounded hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
-              onClick={() => setBoxes(generateRandomBoxes(boxes.length))}
+              onClick={() => {
+                const canvas = canvasRef.current;
+                if (canvas) {
+                  setBoxes(generateMapLayout(canvas.width, canvas.height));
+                } else {
+                  setBoxes(generateMapLayout());
+                }
+              }}
             >
-              Regenerate Boxes
+              Reset Map
             </button>
           </div>
           

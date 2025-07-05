@@ -1,6 +1,7 @@
 import { Player, AIVision, AIManagerConfig, Box } from './types';
 import { updateAiPlayer } from './AIPlayer';
 import { checkPlayerBoxCollision, checkPlayerCollision } from './collision';
+import { getRandomAISpawnPoint, isValidSpawnPosition as checkMapSpawnPosition } from './MapLayout';
 
 /**
  * Manages multiple AI players, handling spawning, updating, and despawning
@@ -60,23 +61,21 @@ export class AIManager {
     // Remove any AI players marked as dead
     this.removeDeadAIPlayers();
   }
-  
-  /**
+    /**
    * Spawns a new AI player at a collision-free location
    */
   private spawnAIPlayer(humanPlayer: Player, boxes: Box[], canvas: HTMLCanvasElement | null): void {
     // Don't spawn if we're at max capacity
     if (this.aiPlayers.length >= this.config.maxBots) return;
     
-    // Get canvas dimensions if available
-    const canvasWidth = canvas ? canvas.width : 800;
-    const canvasHeight = canvas ? canvas.height : 600;
+    // Get a random spawn point from the map layout
+    const spawnPoint = getRandomAISpawnPoint();
     
-    // Create a new AI player with initial spawn location
+    // Create a new AI player with spawn point location
     const newAIPlayer: Player = {
       id: `ai-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      x: this.config.spawnLocation.x,
-      y: this.config.spawnLocation.y,
+      x: spawnPoint.x,
+      y: spawnPoint.y,
       direction: 'right',
       speed: 0.5, // Slower than human player
       size: 20,
@@ -87,22 +86,39 @@ export class AIManager {
       rotationSpeed: 0.08 // Slightly slower rotation than the player
     };
     
-    // Try to find a collision-free spawn position, with max attempts to prevent infinite loops
-    const maxAttempts = 50;
-    let attempts = 0;
+    // Validate the spawn position is clear
+    if (!checkMapSpawnPosition(newAIPlayer.x, newAIPlayer.y, newAIPlayer.size, boxes)) {
+      console.warn("AI spawn point is blocked by walls, trying alternative positions");
+      
+      // Try a few alternative positions near the spawn point
+      const maxAttempts = 10;
+      let attempts = 0;
+      let foundValidPosition = false;
+      
+      while (!foundValidPosition && attempts < maxAttempts) {
+        const offsetX = (Math.random() - 0.5) * 100; // Random offset within 100 pixels
+        const offsetY = (Math.random() - 0.5) * 100;
+        
+        const testX = spawnPoint.x + offsetX;
+        const testY = spawnPoint.y + offsetY;
+        
+        if (checkMapSpawnPosition(testX, testY, newAIPlayer.size, boxes)) {
+          newAIPlayer.x = testX;
+          newAIPlayer.y = testY;
+          foundValidPosition = true;
+        }
+        attempts++;
+      }
+      
+      if (!foundValidPosition) {
+        console.warn("Could not find a valid spawn position for AI player");
+        return; // Don't spawn if we can't find a valid position
+      }    }
     
-    while (!this.isValidSpawnPosition(newAIPlayer, humanPlayer, boxes) && attempts < maxAttempts) {
-      // Generate a new random position within the canvas boundaries
-      // Keep some margin from the edges
-      const margin = newAIPlayer.size * 2;
-      newAIPlayer.x = margin + Math.random() * (canvasWidth - margin * 2);
-      newAIPlayer.y = margin + Math.random() * (canvasHeight - margin * 2);
-      attempts++;
-    }
-    
-    // Log if we couldn't find a collision-free position after max attempts
-    if (attempts >= maxAttempts) {
-      console.warn("Could not find a collision-free spawn position after", attempts, "attempts");
+    // Check final position against human player and other AI
+    if (!this.isValidSpawnPosition(newAIPlayer, humanPlayer, boxes)) {
+      console.warn("Could not find a collision-free spawn position for AI player");
+      return; // Don't spawn if position conflicts with players
     }
     
     // Create AI vision
