@@ -1,6 +1,4 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useIsMobile } from './useIsMobile';
-import { useOrientation } from './useOrientation';
 
 interface MobileControlsProps {
   onMovement: (direction: { x: number; y: number }) => void;
@@ -186,12 +184,8 @@ const MobileControls: React.FC<MobileControlsProps> = ({
   isVisible,
   attackCooldown,
   isPlayerDead,
-  onFullscreenToggle,
   isFullscreen,
-  fullscreenSupported
 }) => {
-  const isMobile = useIsMobile();
-  const orientation = useOrientation();
   
   if (!isVisible) return null;    return (
     <div className="fixed bottom-2 md:bottom-4 left-0 right-0 flex justify-between items-end px-2 md:px-4 pointer-events-none z-50 safe-area-inset mobile-controls">

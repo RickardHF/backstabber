@@ -1,5 +1,5 @@
 import { Player, Direction, Box, AIVision } from './types';
-import { calculateNonCollidingPosition, checkPlayerCollision } from './collision';
+import { calculateNonCollidingPosition } from './collision';
 
 // Function to check if player is behind an AI bot (outside of vision cone)
 export const isPlayerBehindAI = (

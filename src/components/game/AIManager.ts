@@ -31,7 +31,7 @@ export class AIManager {
         this.aiPlayers.length < this.config.maxBots && 
         currentTime >= this.nextSpawnTime) {
       console.log("Spawning AI player at time:", currentTime);
-      this.spawnAIPlayer(player, boxes, canvas);
+      this.spawnAIPlayer(player, boxes);
       this.scheduleNextSpawn();
     }
     
@@ -64,7 +64,8 @@ export class AIManager {
     /**
    * Spawns a new AI player at a collision-free location
    */
-  private spawnAIPlayer(humanPlayer: Player, boxes: Box[], canvas: HTMLCanvasElement | null): void {
+  private spawnAIPlayer(humanPlayer: Player, boxes: Box[]
+  ): void {
     // Don't spawn if we're at max capacity
     if (this.aiPlayers.length >= this.config.maxBots) return;
     

@@ -132,14 +132,14 @@ export const calculateWallSlidePosition = (
   boxes: Box[]
 ): { x: number, y: number } => {
   // Try horizontal movement only
-  let testPlayerX: Player = {
+  const testPlayerX: Player = {
     ...player,
     x: targetX,
     y: currentY
   };
   
   // Try vertical movement only
-  let testPlayerY: Player = {
+  const testPlayerY: Player = {
     ...player,
     x: currentX,
     y: targetY

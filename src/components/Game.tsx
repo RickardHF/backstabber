@@ -7,7 +7,7 @@ import MobileControls from './game/MobileControls';
 import { useIsMobile } from './game/useIsMobile';
 import { useFullscreen } from './game/useFullscreen';
 import { useOrientation } from './game/useOrientation';
-import { generateMapLayout, getUserSpawnPoint, MAP_CONFIG } from './game/MapLayout';
+import { generateMapLayout, getUserSpawnPoint } from './game/MapLayout';
 
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

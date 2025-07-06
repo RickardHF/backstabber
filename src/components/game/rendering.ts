@@ -1,6 +1,6 @@
 import { Player, Box } from './types';
 import { directionColors, aiDirectionColors } from './constants';
-import { CharacterSprite, createCharacterSprite, createCharacterSpriteFromImage } from './sprites';
+import { CharacterSprite, createCharacterSpriteFromImage } from './sprites';
 
 // Helper function to draw grid
 export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {

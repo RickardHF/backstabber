@@ -18,6 +18,7 @@ export class CharacterSprite {
   private spriteImage: HTMLImageElement | null = null;
   private config: SpriteConfig;
   private animationTime: number = 0;
+  private idleAnimationTime: number = 0;
   private imageLoaded: boolean = false;
   
   constructor(config: SpriteConfig) {
@@ -156,12 +157,18 @@ export class CharacterSprite {
     // Restore context
     ctx.restore();
   }
-  
-  // Get the current animation frame
+    // Get the current animation frame
   private getCurrentFrame(deltaTime: number): number {
     this.animationTime += deltaTime;
     const frameTime = 1000 / this.config.animationSpeed; // ms per frame
     return Math.floor(this.animationTime / frameTime) % this.config.frameCount;
+  }
+  
+  // Get the current idle animation frame (slower animation)
+  private getCurrentIdleFrame(deltaTime: number): number {
+    this.idleAnimationTime += deltaTime;
+    const idleFrameTime = 1000 / (this.config.animationSpeed * 0.5); // Half speed for idle
+    return Math.floor(this.idleAnimationTime / idleFrameTime) % this.config.frameCount;
   }
   
   // Convert player rotation to sprite direction (0-7)
@@ -193,12 +200,11 @@ export class CharacterSprite {
     }    const { frameWidth, frameHeight } = this.config;
     const isMoving = player.direction !== 'none';
     
-    // For idle: use frame 0 from column 0
-    // For moving: cycle through frames 0-16 from column 1
-    const frame = isMoving ? this.getCurrentFrame(deltaTime) : 0;
+    // Use different animation speeds for idle vs moving
+    const frame = isMoving ? this.getCurrentFrame(deltaTime) : this.getCurrentIdleFrame(deltaTime);
     
     // Calculate source position in sprite sheet
-    // Column 0 = idle (1 frame), Column 1 = moving (17 frames)
+    // Column 0 = idle animation, Column 1 = moving animation (both have 17 frames)
     const sourceX = isMoving ? frameWidth : 0; // Column 0 for idle, column 1 for moving
     const sourceY = frame * frameHeight; // Row based on animation frame
       // Calculate destination size (scale with player size)
