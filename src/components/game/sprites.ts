@@ -201,9 +201,8 @@ export class CharacterSprite {
     // Column 0 = idle (1 frame), Column 1 = moving (17 frames)
     const sourceX = isMoving ? frameWidth : 0; // Column 0 for idle, column 1 for moving
     const sourceY = frame * frameHeight; // Row based on animation frame
-    
-    // Calculate destination size (scale with player size)
-    const destSize = player.size * 2;
+      // Calculate destination size (scale with player size)
+    const destSize = player.size * 2.5; // Increased from 2 to 2.5 to make character look larger
     const destX = player.x - destSize / 2;
     const destY = player.y - destSize / 2;
       // Save context for rotation
