@@ -8,17 +8,36 @@ interface FullscreenState {
   toggleFullscreen: () => Promise<void>;
 }
 
+// Type definitions for browser-specific fullscreen APIs
+interface DocumentWithFullscreen extends Document {
+  webkitFullscreenEnabled?: boolean;
+  mozFullScreenEnabled?: boolean;
+  msFullscreenEnabled?: boolean;
+  webkitFullscreenElement?: Element;
+  mozFullScreenElement?: Element;
+  msFullscreenElement?: Element;
+  webkitExitFullscreen?: () => Promise<void>;
+  mozCancelFullScreen?: () => Promise<void>;
+  msExitFullscreen?: () => Promise<void>;
+}
+
+interface ElementWithFullscreen extends HTMLElement {
+  webkitRequestFullscreen?: () => Promise<void>;
+  mozRequestFullScreen?: () => Promise<void>;
+  msRequestFullscreen?: () => Promise<void>;
+}
+
 export const useFullscreen = (elementRef?: React.RefObject<HTMLElement | null>): FullscreenState => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
-
   useEffect(() => {
     // Check if fullscreen is supported
+    const doc = document as DocumentWithFullscreen;
     const isFullscreenSupported = !!(
       document.fullscreenEnabled ||
-      (document as any).webkitFullscreenEnabled ||
-      (document as any).mozFullScreenEnabled ||
-      (document as any).msFullscreenEnabled
+      doc.webkitFullscreenEnabled ||
+      doc.mozFullScreenEnabled ||
+      doc.msFullscreenEnabled
     );
     
     setIsSupported(isFullscreenSupported);
@@ -27,9 +46,9 @@ export const useFullscreen = (elementRef?: React.RefObject<HTMLElement | null>):
     const handleFullscreenChange = () => {
       const fullscreenElement = 
         document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement;
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement;
       
       setIsFullscreen(!!fullscreenElement);
     };
@@ -47,39 +66,39 @@ export const useFullscreen = (elementRef?: React.RefObject<HTMLElement | null>):
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
-
   const enterFullscreen = useCallback(async () => {
     if (!isSupported) return;
     
-    const element = elementRef?.current || document.documentElement;
+    const element = (elementRef?.current || document.documentElement) as ElementWithFullscreen;
     
     try {
       if (element.requestFullscreen) {
         await element.requestFullscreen();
-      } else if ((element as any).webkitRequestFullscreen) {
-        await (element as any).webkitRequestFullscreen();
-      } else if ((element as any).mozRequestFullScreen) {
-        await (element as any).mozRequestFullScreen();
-      } else if ((element as any).msRequestFullscreen) {
-        await (element as any).msRequestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        await element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        await element.msRequestFullscreen();
       }
     } catch (error) {
       console.warn('Failed to enter fullscreen:', error);
     }
   }, [elementRef, isSupported]);
-
   const exitFullscreen = useCallback(async () => {
     if (!isSupported) return;
+    
+    const doc = document as DocumentWithFullscreen;
     
     try {
       if (document.exitFullscreen) {
         await document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        await (document as any).webkitExitFullscreen();
-      } else if ((document as any).mozCancelFullScreen) {
-        await (document as any).mozCancelFullScreen();
-      } else if ((document as any).msExitFullscreen) {
-        await (document as any).msExitFullscreen();
+      } else if (doc.webkitExitFullscreen) {
+        await doc.webkitExitFullscreen();
+      } else if (doc.mozCancelFullScreen) {
+        await doc.mozCancelFullScreen();
+      } else if (doc.msExitFullscreen) {
+        await doc.msExitFullscreen();
       }
     } catch (error) {
       console.warn('Failed to exit fullscreen:', error);
