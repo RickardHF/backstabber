@@ -173,7 +173,7 @@ export class CharacterSprite {
     const direction = Math.round(normalizedRotation / (Math.PI / 4)) % 8;
     return direction;
   }
-    // Render the character sprite
+  // Render the character sprite
   public render(
     ctx: CanvasRenderingContext2D,
     player: Player,
@@ -190,20 +190,27 @@ export class CharacterSprite {
       ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
       ctx.fill();
       return;
-    }
+    }    const { frameWidth, frameHeight } = this.config;
+    const isMoving = player.direction !== 'none';
     
-    const { frameWidth, frameHeight } = this.config;
-    const direction = this.getDirectionFromRotation(player.rotation);
-    const frame = player.direction !== 'none' ? this.getCurrentFrame(deltaTime) : 0;
+    // For idle: use frame 0 from column 0
+    // For moving: cycle through frames 0-16 from column 1
+    const frame = isMoving ? this.getCurrentFrame(deltaTime) : 0;
     
     // Calculate source position in sprite sheet
-    const sourceX = frame * frameWidth;
-    const sourceY = direction * frameHeight;
+    // Column 0 = idle (1 frame), Column 1 = moving (17 frames)
+    const sourceX = isMoving ? frameWidth : 0; // Column 0 for idle, column 1 for moving
+    const sourceY = frame * frameHeight; // Row based on animation frame
     
     // Calculate destination size (scale with player size)
     const destSize = player.size * 2;
     const destX = player.x - destSize / 2;
     const destY = player.y - destSize / 2;
+      // Save context for rotation
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.rotation - Math.PI / 2); // Subtract 90 degrees to align with upward-facing sprite
+    ctx.translate(-player.x, -player.y);
     
     // Apply color tint for AI players
     if (isAI) {
@@ -213,8 +220,7 @@ export class CharacterSprite {
       ctx.fillRect(destX, destY, destSize, destSize);
       ctx.globalCompositeOperation = 'source-over';
     }
-    
-    // Draw the sprite
+      // Draw the sprite
     ctx.drawImage(
       this.spriteImage,
       sourceX, sourceY, frameWidth, frameHeight,
@@ -225,7 +231,10 @@ export class CharacterSprite {
       ctx.restore();
     }
     
-    // Draw player label
+    // Restore rotation context
+    ctx.restore();
+    
+    // Draw player label (after restoring rotation so text stays upright)
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#FFFFFF';
@@ -240,10 +249,10 @@ export class CharacterSprite {
 export const createCharacterSprite = (config: SpriteConfig = {
   frameWidth: 32,
   frameHeight: 32,
-  frameCount: 4, // idle + 3 walk frames
-  animationSpeed: 8, // 8 fps
-  useImageFile: false, // Set to true to load from image file
-  spriteSheetUrl: '/character-sprite.png' // Path to sprite sheet in public folder
+  frameCount: 17, // 17 movement frames (idle has only 1 frame)
+  animationSpeed: 12, // 12 fps for smoother animation with more frames
+  useImageFile: true, // Use image file by default
+  spriteSheetUrl: '/sprites/charactersprites.png' // Path to sprite sheet in public folder
 }) => {
   return new CharacterSprite(config);
 };
@@ -252,12 +261,11 @@ export const createCharacterSprite = (config: SpriteConfig = {
 export const createCharacterSpriteFromImage = (
   spriteSheetUrl: string,
   config: Partial<SpriteConfig> = {}
-) => {
-  const fullConfig: SpriteConfig = {
+) => {  const fullConfig: SpriteConfig = {
     frameWidth: 32,
     frameHeight: 32,
-    frameCount: 4,
-    animationSpeed: 8,
+    frameCount: 17, // 17 movement frames
+    animationSpeed: 12, // 12 fps for smoother animation
     useImageFile: true,
     spriteSheetUrl,
     ...config

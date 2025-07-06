@@ -274,12 +274,12 @@ let lastUpdateTime: number = 0;
 // Initialize character sprite on first use
 const initializeSprite = () => {
   if (!characterSprite) {
-    // Try to use image file first, fallback to procedural generation
-    characterSprite = createCharacterSpriteFromImage('/character-sprite.png', {
+    // Use the new character sprite sheet with 17 movement frames
+    characterSprite = createCharacterSpriteFromImage('/sprites/charactersprites.png', {
       frameWidth: 32,
       frameHeight: 32,
-      frameCount: 4,
-      animationSpeed: 8
+      frameCount: 17, // 17 movement frames
+      animationSpeed: 12 // 12 fps for smoother animation
     });
   }
 };
