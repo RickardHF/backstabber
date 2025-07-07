@@ -163,6 +163,12 @@ export class CharacterSprite {
     const frameTime = 1000 / this.config.animationSpeed; // ms per frame
     return Math.floor(this.animationTime / frameTime) % this.config.frameCount;
   }
+  // Get the current attack animation frame
+  private getCurrentAttackFrame(deltaTime: number): number {
+    this.animationTime += deltaTime;
+    const frameTime = 1000 / (this.config.animationSpeed * 1.5); // Faster animation for attacks
+    return Math.floor(this.animationTime / frameTime) % 4; // 4 attack frames
+  }
   
   // Get the current idle animation frame (slower animation)
   private getCurrentIdleFrame(deltaTime: number): number {
@@ -199,22 +205,34 @@ export class CharacterSprite {
       return;
     }    const { frameWidth, frameHeight } = this.config;
     const isMoving = player.direction !== 'none';
+    const isAttacking = player.isAttacking || false;
     
-    // Use different animation speeds for idle vs moving
-    const frame = isMoving ? this.getCurrentFrame(deltaTime) : this.getCurrentIdleFrame(deltaTime);
+    // Determine which animation to use and get the appropriate frame
+    let frame: number;
+    let sourceX: number;
     
-    // Calculate source position in sprite sheet
-    // Column 0 = idle animation, Column 1 = moving animation (both have 17 frames)
-    const sourceX = isMoving ? frameWidth : 0; // Column 0 for idle, column 1 for moving
+    if (isAttacking) {
+      // Attack animation - 3rd column (column index 2), 4 frames
+      frame = this.getCurrentAttackFrame(deltaTime);
+      sourceX = frameWidth * 2; // 3rd column (0-indexed)
+    } else if (isMoving) {
+      // Moving animation - 2nd column (column index 1), 17 frames
+      frame = this.getCurrentFrame(deltaTime);
+      sourceX = frameWidth; // 2nd column
+    } else {
+      // Idle animation - 1st column (column index 0), 17 frames
+      frame = this.getCurrentIdleFrame(deltaTime);
+      sourceX = 0; // 1st column
+    }
+    
     const sourceY = frame * frameHeight; // Row based on animation frame
       // Calculate destination size (scale with player size)
     const destSize = player.size * 2.5; // Increased from 2 to 2.5 to make character look larger
     const destX = player.x - destSize / 2;
-    const destY = player.y - destSize / 2;
-      // Save context for rotation
+    const destY = player.y - destSize / 2;      // Save context for rotation
     ctx.save();
     ctx.translate(player.x, player.y);
-    ctx.rotate(player.rotation - Math.PI / 2); // Subtract 90 degrees to align with upward-facing sprite
+    ctx.rotate(player.rotation + Math.PI / 2); // Add 90 degrees to align with upward-facing sprite
     ctx.translate(-player.x, -player.y);
     
     // Apply color tint for AI players
@@ -254,7 +272,7 @@ export class CharacterSprite {
 export const createCharacterSprite = (config: SpriteConfig = {
   frameWidth: 32,
   frameHeight: 32,
-  frameCount: 17, // 17 movement frames (idle has only 1 frame)
+  frameCount: 17, // 17 movement frames for walking animation
   animationSpeed: 12, // 12 fps for smoother animation with more frames
   useImageFile: true, // Use image file by default
   spriteSheetUrl: '/sprites/charactersprites.png' // Path to sprite sheet in public folder

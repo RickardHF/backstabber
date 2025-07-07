@@ -19,6 +19,7 @@ export interface GameObject {
 export interface Player extends GameObject {
   isAI?: boolean;
   isDead?: boolean;
+  isAttacking?: boolean;
   vision?: { 
     visionConeAngle: number;  // Field of view angle in degrees
     visionDistance: number;   // How far the player can see

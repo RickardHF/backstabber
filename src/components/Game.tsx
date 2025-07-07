@@ -14,8 +14,7 @@ const Game = () => {
   
   // Get user spawn point from map layout
   const userSpawn = getUserSpawnPoint();
-  
-  // Human-controlled player
+    // Human-controlled player
   const [player, setPlayer] = useState<Player>({
     id: 'player1',
     x: userSpawn.x,
@@ -27,11 +26,12 @@ const Game = () => {
     rotation: 0, // Initially facing right (0 radians)
     rotationSpeed: 0.1, // Speed of rotation when turning
     isDead: false,
+    isAttacking: false, // Initialize attacking state
     vision: {
       visionConeAngle: 220, // Same 220-degree field of view as AI
       visionDistance: 40 * 5 // 5x the body size - slightly larger than AI
     }
-  });    // AI Manager configuration
+  });// AI Manager configuration
   const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
     maxBots: 2, // Default to 2 bots maximum
     spawnLocation: { x: 200, y: 200 }, // This will be overridden by the MapLayout system
@@ -66,10 +66,12 @@ const Game = () => {
   }>({
     progress: 0,
     killedBy: null
-  });
-  // Handle attacking AI bots from behind
+  });  // Handle attacking AI bots from behind
   const tryAttack = useCallback(() => {
     if (attackCooldown || !aiManagerRef.current) return;
+    
+    // Set the player as attacking
+    setPlayer(prev => ({ ...prev, isAttacking: true }));
     
     // Get all active AI bots
     const aiPlayers = aiManagerRef.current.getAIPlayers();
@@ -84,13 +86,19 @@ const Game = () => {
         
         // Add to the defeated enemies count
         setDefeatedEnemies(prev => prev + 1);
-        
-        // Set cooldown to prevent rapid attacks
-        setAttackCooldown(true);
-        setTimeout(() => setAttackCooldown(false), 500); // 500ms cooldown
         break;
       }
     }
+    
+    // Set cooldown to prevent rapid attacks
+    setAttackCooldown(true);
+    
+    // Reset attacking state after a short duration (attack animation length)
+    setTimeout(() => {
+      setPlayer(prev => ({ ...prev, isAttacking: false }));
+    }, 300); // 300ms attack animation duration
+    
+    setTimeout(() => setAttackCooldown(false), 500); // 500ms cooldown
   }, [player, attackCooldown]);
 
   // Function to handle player death
@@ -187,8 +195,7 @@ const Game = () => {
     setTimeout(() => {
       setGraceActive(false);
     }, 2000); // 2 seconds of grace period
-    
-    // Reset player to user spawn point
+      // Reset player to user spawn point
     const userSpawn = getUserSpawnPoint();
     setPlayer(prev => ({
       ...prev,
@@ -198,6 +205,7 @@ const Game = () => {
       rotation: 0,
       pulse: 0,
       isDead: false,
+      isAttacking: false, // Reset attacking state
       vision: {
         visionConeAngle: 220, // Same 220-degree field of view as AI
         visionDistance: 40 * 5 // 5x the body size
