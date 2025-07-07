@@ -1,6 +1,6 @@
 import { Player, Box } from './types';
 import { directionColors, aiDirectionColors } from './constants';
-import { CharacterSprite, createCharacterSpriteFromImage } from './sprites';
+import { CharacterSprite, createCharacterSpriteFromImage, preloadSpriteImage } from './sprites';
 
 // Helper function to draw grid
 export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
@@ -270,10 +270,26 @@ export const drawPlayerVisionCone = (
 // Initialize sprite system
 let characterSprite: CharacterSprite | null = null;
 let lastUpdateTime: number = 0;
+let spritePreloaded: boolean = false;
+
+// Preload sprite image for better deployment compatibility
+const preloadSprite = async () => {
+  if (!spritePreloaded) {
+    spritePreloaded = await preloadSpriteImage('/sprites/charactersprites.png');
+    if (spritePreloaded) {
+      console.log('Sprite preloading successful');
+    } else {
+      console.warn('Sprite preloading failed, will use fallback rendering');
+    }
+  }
+};
 
 // Initialize character sprite on first use
-const initializeSprite = () => {
+const initializeSprite = async () => {
   if (!characterSprite) {
+    // Preload sprite first
+    await preloadSprite();
+    
     // Use the new character sprite sheet with 17 movement frames
     characterSprite = createCharacterSpriteFromImage('/sprites/charactersprites.png', {
       frameWidth: 32,
@@ -287,8 +303,10 @@ const initializeSprite = () => {
 // Helper function to draw player with sprite
 export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites: boolean = true) => {
   if (useSprites) {
-    // Initialize sprite system if needed
-    initializeSprite();
+    // Initialize sprite system if needed (non-blocking)
+    if (!characterSprite) {
+      initializeSprite(); // This is now async but non-blocking
+    }
     
     // Calculate delta time for animation
     const currentTime = Date.now();

@@ -8,6 +8,7 @@ import { useIsMobile } from './game/useIsMobile';
 import { useFullscreen } from './game/useFullscreen';
 import { useOrientation } from './game/useOrientation';
 import { generateMapLayout, getUserSpawnPoint } from './game/MapLayout';
+import { debugSpriteLoading } from '../utils/debugSprites';
 
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -234,9 +235,20 @@ const Game = () => {
     // Start grace period
     setGraceActive(true);
     setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
-  }, [deathAnimation.animationFrameId, aiManagerConfig]);    // Initialize map layout and AI Manager when component mounts
+  }, [deathAnimation.animationFrameId, aiManagerConfig]);  // Initialize map layout and AI Manager when component mounts
   useEffect(() => {
     setBoxes(generateMapLayout()); // Generate the fixed map layout
+    
+    // Debug sprite loading in development/deployment
+    if (typeof window !== 'undefined') {
+      debugSpriteLoading().then((workingPath) => {
+        if (workingPath) {
+          console.log('Sprite system ready with path:', workingPath);
+        } else {
+          console.log('Sprite system will use procedural generation');
+        }
+      });
+    }
     
     // Initialize AI Manager
     if (!aiManagerRef.current) {

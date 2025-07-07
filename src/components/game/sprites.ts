@@ -34,20 +34,68 @@ export class CharacterSprite {
       this.createCharacterSprite();
     }
   }
-  
   // Load sprite from image file
   private loadImageSprite(url: string) {
     this.spriteImage = new Image();
+    
+    // Add crossOrigin to prevent CORS issues
+    this.spriteImage.crossOrigin = 'anonymous';
+    
     this.spriteImage.onload = () => {
       this.imageLoaded = true;
-      console.log(`Sprite sheet loaded: ${url}`);
+      console.log(`Sprite sheet loaded successfully: ${url}`);
+      console.log(`Image dimensions: ${this.spriteImage!.width}x${this.spriteImage!.height}`);
     };
+    
     this.spriteImage.onerror = (error) => {
       console.error(`Failed to load sprite sheet: ${url}`, error);
+      console.log('Attempting to load with alternative paths...');
+      
+      // Try alternative paths for deployment compatibility
+      const alternativePaths = [
+        `${window.location.origin}/sprites/charactersprites.png`,
+        `./sprites/charactersprites.png`,
+        `/public/sprites/charactersprites.png`,
+        // Add cache-busting version
+        `/sprites/charactersprites.png?v=${Date.now()}`
+      ];
+      
+      this.tryAlternativePaths(alternativePaths, 0);
+    };
+    
+    // Add cache-busting parameter for better deployment compatibility
+    const cacheBustingUrl = url.includes('?') ? `${url}&v=${Date.now()}` : `${url}?v=${Date.now()}`;
+    this.spriteImage.src = cacheBustingUrl;
+  }
+    // Try alternative image paths if the main one fails
+  private tryAlternativePaths(paths: string[], index: number) {
+    if (index >= paths.length) {
+      console.warn('All sprite paths failed, falling back to procedural generation');
       // Fallback to procedural generation
       this.createCharacterSprite();
+      return;
+    }
+    
+    const testImage = new Image();
+    const currentPath = paths[index];
+    
+    // Add crossOrigin for CORS compatibility
+    testImage.crossOrigin = 'anonymous';
+    
+    testImage.onload = () => {
+      console.log(`Alternative sprite path successful: ${currentPath}`);
+      console.log(`Image dimensions: ${testImage.width}x${testImage.height}`);
+      this.spriteImage = testImage;
+      this.imageLoaded = true;
     };
-    this.spriteImage.src = url;
+    
+    testImage.onerror = () => {
+      console.log(`Alternative path failed: ${currentPath}`);
+      // Try next path
+      this.tryAlternativePaths(paths, index + 1);
+    };
+    
+    testImage.src = currentPath;
   }
   
   // Create a procedural character sprite (person viewed from above)
@@ -284,7 +332,8 @@ export const createCharacterSprite = (config: SpriteConfig = {
 export const createCharacterSpriteFromImage = (
   spriteSheetUrl: string,
   config: Partial<SpriteConfig> = {}
-) => {  const fullConfig: SpriteConfig = {
+) => {
+  const fullConfig: SpriteConfig = {
     frameWidth: 32,
     frameHeight: 32,
     frameCount: 17, // 17 movement frames
@@ -294,4 +343,20 @@ export const createCharacterSpriteFromImage = (
     ...config
   };
   return new CharacterSprite(fullConfig);
+};
+
+// Preload sprite images to ensure they're available in deployment
+export const preloadSpriteImage = async (url: string = '/sprites/charactersprites.png'): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      console.log(`Sprite preloaded successfully: ${url}`);
+      resolve(true);
+    };
+    img.onerror = (error) => {
+      console.error(`Failed to preload sprite: ${url}`, error);
+      resolve(false);
+    };
+    img.src = url;
+  });
 };
