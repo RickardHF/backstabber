@@ -4,7 +4,6 @@ import {
   CharacterSprite, 
   createCharacterSpriteFromImage, 
   createEnemySpriteFromImage,
-  preloadSpriteImage,
   preloadAllSprites 
 } from './sprites';
 
@@ -276,8 +275,6 @@ export const drawPlayerVisionCone = (
 // Initialize sprite system
 let characterSprite: CharacterSprite | null = null;
 let enemySprite: CharacterSprite | null = null;
-// Legacy timestamp (kept for backward compatibility if needed)
-let lastUpdateTime: number = 0;
 // Per-frame timing (prevents multiple sprites in same frame from shrinking deltaTime)
 let lastFrameTime: number | null = null;
 let frameDeltaTime: number = 16; // default ~60fps
