@@ -548,7 +548,11 @@ const Game = () => {
             
             const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, aiBox);
             if (dist !== null && dist < rayLength) {
-              rayLength = dist;
+              // Ensure at least 30px of the AI player remains visible
+              // by extending the ray beyond the AI player's center
+              const guaranteedVisibleDistance = 30;
+              const extendedDistance = dist + guaranteedVisibleDistance;
+              rayLength = Math.min(rayLength, extendedDistance);
             }
           }
           
