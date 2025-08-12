@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, UnifrakturMaguntia } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
@@ -11,6 +11,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Medieval styled display font for the header/title
+const medievalDisplay = UnifrakturMaguntia({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-medieval-display",
 });
 
 export const metadata: Metadata = {
@@ -76,7 +83,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white dark:bg-zinc-900`}
+        className={`${geistSans.variable} ${geistMono.variable} ${medievalDisplay.variable} antialiased bg-white dark:bg-zinc-900`}
       >
         {children}
       </body>
