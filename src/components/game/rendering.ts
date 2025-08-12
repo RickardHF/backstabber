@@ -1,6 +1,12 @@
 import { Player, Box } from './types';
 import { directionColors, aiDirectionColors } from './constants';
-import { CharacterSprite, createCharacterSpriteFromImage, preloadSpriteImage } from './sprites';
+import { 
+  CharacterSprite, 
+  createCharacterSpriteFromImage, 
+  createEnemySpriteFromImage,
+  preloadSpriteImage,
+  preloadAllSprites 
+} from './sprites';
 
 // Helper function to draw grid
 export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
@@ -269,34 +275,51 @@ export const drawPlayerVisionCone = (
 
 // Initialize sprite system
 let characterSprite: CharacterSprite | null = null;
+let enemySprite: CharacterSprite | null = null;
 let lastUpdateTime: number = 0;
-let spritePreloaded: boolean = false;
+let spritesPreloaded: { character: boolean; enemy: boolean } = { character: false, enemy: false };
 
-// Preload sprite image for better deployment compatibility
-const preloadSprite = async () => {
-  if (!spritePreloaded) {
-    spritePreloaded = await preloadSpriteImage('/sprites/charactersprites.png');
-    if (spritePreloaded) {
-      console.log('Sprite preloading successful');
+// Preload sprite images for better deployment compatibility
+const preloadSprites = async () => {
+  if (!spritesPreloaded.character || !spritesPreloaded.enemy) {
+    const results = await preloadAllSprites();
+    spritesPreloaded = results;
+    
+    if (results.character && results.enemy) {
+      console.log('All sprites preloaded successfully');
     } else {
-      console.warn('Sprite preloading failed, will use fallback rendering');
+      console.warn(`Sprite preloading results - Character: ${results.character}, Enemy: ${results.enemy}`);
     }
   }
 };
 
 // Initialize character sprite on first use
-const initializeSprite = async () => {
-  if (!characterSprite) {
-    // Preload sprite first
-    await preloadSprite();
+const initializeSprites = async () => {
+  if (!characterSprite || !enemySprite) {
+    // Preload sprites first
+    await preloadSprites();
     
-    // Use the new character sprite sheet with 17 movement frames
-    characterSprite = createCharacterSpriteFromImage('/sprites/charactersprites.png', {
-      frameWidth: 32,
-      frameHeight: 32,
-      frameCount: 17, // 17 movement frames
-      animationSpeed: 12 // 12 fps for smoother animation
-    });
+    // Initialize character sprite
+    if (!characterSprite) {
+      characterSprite = createCharacterSpriteFromImage('/sprites/charactersprites.png', {
+        frameWidth: 32,
+        frameHeight: 32,
+        frameCount: 17, // 17 movement frames
+        animationSpeed: 12, // 12 fps for smoother animation
+        spriteType: 'character'
+      });
+    }
+    
+    // Initialize enemy sprite
+    if (!enemySprite) {
+      enemySprite = createEnemySpriteFromImage('/sprites/enemysprites.png', {
+        frameWidth: 32,
+        frameHeight: 32,
+        frameCount: 17, // 17 movement frames
+        animationSpeed: 12, // 12 fps for smoother animation
+        spriteType: 'enemy'
+      });
+    }
   }
 };
 
@@ -304,8 +327,8 @@ const initializeSprite = async () => {
 export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites: boolean = true) => {
   if (useSprites) {
     // Initialize sprite system if needed (non-blocking)
-    if (!characterSprite) {
-      initializeSprite(); // This is now async but non-blocking
+    if (!characterSprite || !enemySprite) {
+      initializeSprites(); // This is now async but non-blocking
     }
     
     // Calculate delta time for animation
@@ -313,9 +336,12 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
     const deltaTime = currentTime - lastUpdateTime;
     lastUpdateTime = currentTime;
     
+    // Choose the appropriate sprite based on whether this is an AI player
+    const sprite = (p.isAI || false) ? enemySprite : characterSprite;
+    
     // Use sprite rendering
-    if (characterSprite) {
-      characterSprite.render(ctx, p, deltaTime, p.isAI || false);
+    if (sprite) {
+      sprite.render(ctx, p, deltaTime, p.isAI || false);
       
       // Draw direction indicator line if moving
       if (p.direction !== 'none') {

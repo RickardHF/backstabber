@@ -241,9 +241,9 @@ const Game = () => {
     
     // Debug sprite loading in development/deployment
     if (typeof window !== 'undefined') {
-      debugSpriteLoading().then((workingPath) => {
-        if (workingPath) {
-          console.log('Sprite system ready with path:', workingPath);
+      debugSpriteLoading().then((workingPaths) => {
+        if (workingPaths) {
+          console.log('Sprite system ready with paths:', workingPaths);
         } else {
           console.log('Sprite system will use procedural generation');
         }

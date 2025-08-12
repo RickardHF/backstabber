@@ -1,6 +1,9 @@
 // Sprite rendering system for custom character graphics
 import { Player } from './types';
 
+// Sprite types
+export type SpriteType = 'character' | 'enemy';
+
 // Sprite configuration
 export interface SpriteConfig {
   frameWidth: number;
@@ -9,6 +12,7 @@ export interface SpriteConfig {
   animationSpeed: number; // frames per second
   spriteSheetUrl?: string; // Optional URL to sprite sheet image
   useImageFile?: boolean; // Whether to load from image file or generate procedurally
+  spriteType?: SpriteType; // Type of sprite (character or enemy)
 }
 
 // Character sprite manager
@@ -20,9 +24,11 @@ export class CharacterSprite {
   private animationTime: number = 0;
   private idleAnimationTime: number = 0;
   private imageLoaded: boolean = false;
+  private spriteType: SpriteType;
   
   constructor(config: SpriteConfig) {
     this.config = config;
+    this.spriteType = config.spriteType || 'character';
     this.canvas = document.createElement('canvas');
     this.canvas.width = config.frameWidth;
     this.canvas.height = config.frameHeight;
@@ -53,11 +59,11 @@ export class CharacterSprite {
       
       // Try alternative paths for deployment compatibility
       const alternativePaths = [
-        `${window.location.origin}/sprites/charactersprites.png`,
-        `./sprites/charactersprites.png`,
-        `/public/sprites/charactersprites.png`,
+        `${window.location.origin}${url}`,
+        `.${url}`,
+        `/public${url}`,
         // Add cache-busting version
-        `/sprites/charactersprites.png?v=${Date.now()}`
+        `${url}?v=${Date.now()}`
       ];
       
       this.tryAlternativePaths(alternativePaths, 0);
@@ -144,20 +150,25 @@ export class CharacterSprite {
     // Apply slight animation offset for walking
     const walkOffset = frame > 0 ? Math.sin(frame * 0.5) * 1 : 0;
     
+    // Choose colors based on sprite type
+    const bodyColor = this.spriteType === 'enemy' ? '#E74C3C' : '#4A90E2'; // Red for enemies, blue for characters
+    const hairColor = this.spriteType === 'enemy' ? '#8B0000' : '#654321'; // Dark red for enemies, brown for characters
+    const skinColor = this.spriteType === 'enemy' ? '#FFAA99' : '#FDBCB4'; // Slightly different skin tone
+    
     // Body (oval shape for person from above)
-    ctx.fillStyle = '#4A90E2'; // Blue shirt
+    ctx.fillStyle = bodyColor;
     ctx.beginPath();
     ctx.ellipse(0, walkOffset, 8 * scale, 12 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
     
     // Head (circle)
-    ctx.fillStyle = '#FDBCB4'; // Skin tone
+    ctx.fillStyle = skinColor;
     ctx.beginPath();
     ctx.arc(0, -6 * scale + walkOffset, 4 * scale, 0, Math.PI * 2);
     ctx.fill();
     
     // Hair
-    ctx.fillStyle = '#654321'; // Brown hair
+    ctx.fillStyle = hairColor;
     ctx.beginPath();
     ctx.arc(0, -8 * scale + walkOffset, 3 * scale, 0, Math.PI * 2);
     ctx.fill();
@@ -283,8 +294,8 @@ export class CharacterSprite {
     ctx.rotate(player.rotation + Math.PI / 2); // Add 90 degrees to align with upward-facing sprite
     ctx.translate(-player.x, -player.y);
     
-    // Apply color tint for AI players
-    if (isAI) {
+    // Apply color tint for AI players only if using the same sprite sheet
+    if (isAI && this.spriteType === 'character') {
       ctx.save();
       ctx.globalCompositeOperation = 'multiply';
       ctx.fillStyle = '#FF6B6B'; // Red tint for AI
@@ -298,7 +309,7 @@ export class CharacterSprite {
       destX, destY, destSize, destSize
     );
     
-    if (isAI) {
+    if (isAI && this.spriteType === 'character') {
       ctx.restore();
     }
     
@@ -323,7 +334,21 @@ export const createCharacterSprite = (config: SpriteConfig = {
   frameCount: 17, // 17 movement frames for walking animation
   animationSpeed: 12, // 12 fps for smoother animation with more frames
   useImageFile: true, // Use image file by default
-  spriteSheetUrl: '/sprites/charactersprites.png' // Path to sprite sheet in public folder
+  spriteSheetUrl: '/sprites/charactersprites.png', // Path to sprite sheet in public folder
+  spriteType: 'character'
+}) => {
+  return new CharacterSprite(config);
+};
+
+// Create enemy sprite instance
+export const createEnemySprite = (config: SpriteConfig = {
+  frameWidth: 32,
+  frameHeight: 32,
+  frameCount: 17, // 17 movement frames for walking animation
+  animationSpeed: 12, // 12 fps for smoother animation with more frames
+  useImageFile: true, // Use image file by default
+  spriteSheetUrl: '/sprites/enemysprites.png', // Path to enemy sprite sheet in public folder
+  spriteType: 'enemy'
 }) => {
   return new CharacterSprite(config);
 };
@@ -340,6 +365,25 @@ export const createCharacterSpriteFromImage = (
     animationSpeed: 12, // 12 fps for smoother animation
     useImageFile: true,
     spriteSheetUrl,
+    spriteType: 'character', // Default to character type
+    ...config
+  };
+  return new CharacterSprite(fullConfig);
+};
+
+// Create enemy sprite from image file
+export const createEnemySpriteFromImage = (
+  spriteSheetUrl: string,
+  config: Partial<SpriteConfig> = {}
+) => {
+  const fullConfig: SpriteConfig = {
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 17, // 17 movement frames
+    animationSpeed: 12, // 12 fps for smoother animation
+    useImageFile: true,
+    spriteSheetUrl,
+    spriteType: 'enemy',
     ...config
   };
   return new CharacterSprite(fullConfig);
@@ -359,4 +403,17 @@ export const preloadSpriteImage = async (url: string = '/sprites/charactersprite
     };
     img.src = url;
   });
+};
+
+// Preload both character and enemy sprites
+export const preloadAllSprites = async (): Promise<{ character: boolean; enemy: boolean }> => {
+  const [characterLoaded, enemyLoaded] = await Promise.all([
+    preloadSpriteImage('/sprites/charactersprites.png'),
+    preloadSpriteImage('/sprites/enemysprites.png')
+  ]);
+  
+  return {
+    character: characterLoaded,
+    enemy: enemyLoaded
+  };
 };

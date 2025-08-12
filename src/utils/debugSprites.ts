@@ -7,31 +7,53 @@ export const debugSpriteLoading = async () => {
   console.log('- Base URL:', typeof window !== 'undefined' ? window.location.origin : 'Unknown');
   
   if (typeof window !== 'undefined') {
-    // Test different sprite paths
-    const pathsToTest = [
-      '/sprites/charactersprites.png',
-      `${window.location.origin}/sprites/charactersprites.png`,
-      './sprites/charactersprites.png',
-      '/public/sprites/charactersprites.png'
+    // Test different sprite paths for both character and enemy sprites
+    const spritesToTest = [
+      { name: 'Character Sprites', paths: [
+        '/sprites/charactersprites.png',
+        `${window.location.origin}/sprites/charactersprites.png`,
+        './sprites/charactersprites.png',
+        '/public/sprites/charactersprites.png'
+      ]},
+      { name: 'Enemy Sprites', paths: [
+        '/sprites/enemysprites.png',
+        `${window.location.origin}/sprites/enemysprites.png`,
+        './sprites/enemysprites.png',
+        '/public/sprites/enemysprites.png'
+      ]}
     ];
     
     console.log('Testing sprite paths:');
     
-    for (const path of pathsToTest) {
-      try {
-        const response = await fetch(path, { method: 'HEAD' });
-        console.log(`✅ ${path} - Status: ${response.status}`);
-        
-        if (response.ok) {
-          console.log(`🎯 Working sprite path found: ${path}`);
-          return path;
+    const workingPaths: { [key: string]: string } = {};
+    
+    for (const spriteGroup of spritesToTest) {
+      console.log(`\n--- Testing ${spriteGroup.name} ---`);
+      
+      for (const path of spriteGroup.paths) {
+        try {
+          const response = await fetch(path, { method: 'HEAD' });
+          console.log(`✅ ${path} - Status: ${response.status}`);
+          
+          if (response.ok) {
+            console.log(`🎯 Working ${spriteGroup.name.toLowerCase()} path found: ${path}`);
+            const key = spriteGroup.name === 'Character Sprites' ? 'character' : 'enemy';
+            workingPaths[key] = path;
+            break;
+          }
+        } catch (error) {
+          console.log(`❌ ${path} - Error:`, error);
         }
-      } catch (error) {
-        console.log(`❌ ${path} - Error:`, error);
       }
     }
     
-    console.log('⚠️ No working sprite paths found, will use procedural generation');
+    if (Object.keys(workingPaths).length === 0) {
+      console.log('⚠️ No working sprite paths found, will use procedural generation');
+      return null;
+    } else {
+      console.log('📋 Working sprite paths summary:', workingPaths);
+      return workingPaths;
+    }
   }
   
   return null;
