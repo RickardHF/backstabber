@@ -276,7 +276,25 @@ export const drawPlayerVisionCone = (
 // Initialize sprite system
 let characterSprite: CharacterSprite | null = null;
 let enemySprite: CharacterSprite | null = null;
+// Legacy timestamp (kept for backward compatibility if needed)
 let lastUpdateTime: number = 0;
+// Per-frame timing (prevents multiple sprites in same frame from shrinking deltaTime)
+let lastFrameTime: number | null = null;
+let frameDeltaTime: number = 16; // default ~60fps
+
+// Call this once per rendered frame (before drawing any players)
+export const startFrameTiming = () => {
+  const now = performance.now();
+  if (lastFrameTime === null) {
+    frameDeltaTime = 16; // first frame default
+  } else {
+    frameDeltaTime = now - lastFrameTime;
+    // Clamp unreasonable delta spikes (e.g., tab inactive) to avoid frame jumps
+    if (frameDeltaTime > 250) frameDeltaTime = 250;
+    if (frameDeltaTime < 0) frameDeltaTime = 0; // guard against clock issues
+  }
+  lastFrameTime = now;
+};
 let spritesPreloaded: { character: boolean; enemy: boolean } = { character: false, enemy: false };
 
 // Preload sprite images for better deployment compatibility
@@ -328,17 +346,21 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
   if (useSprites) {
     // Initialize sprite system if needed (non-blocking)
     if (!characterSprite || !enemySprite) {
-      initializeSprites(); // This is now async but non-blocking
+      initializeSprites(); // async fire-and-forget
     }
-    
-    // Calculate delta time for animation
-    const currentTime = Date.now();
-    const deltaTime = currentTime - lastUpdateTime;
-    lastUpdateTime = currentTime;
-    
+
+    // Use per-frame delta time prepared by startFrameTiming()
+    const deltaTime = frameDeltaTime;
+
+    // Fallback: if startFrameTiming wasn't called this frame, approximate
+    if (lastFrameTime === null) {
+      // Initialize timing baseline
+      startFrameTiming();
+    }
+
     // Choose the appropriate sprite based on whether this is an AI player
     const sprite = (p.isAI || false) ? enemySprite : characterSprite;
-    
+
     // Use sprite rendering
     if (sprite) {
       sprite.render(ctx, p, deltaTime, p.isAI || false);

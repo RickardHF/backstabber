@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Player, Box, AIManagerConfig } from './game/types';
-import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection } from './game/rendering';
+import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection, startFrameTiming } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { AIManager } from './game/AIManager';
 import MobileControls from './game/MobileControls';
@@ -406,6 +406,8 @@ const Game = () => {
   }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile]);
     // Render the game
   const renderGame = () => {
+    // Prepare per-frame timing for sprite animations
+    startFrameTiming();
     const canvas = canvasRef.current;
     if (!canvas) return;
 
