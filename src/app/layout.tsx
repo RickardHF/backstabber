@@ -14,8 +14,29 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Simple AI Game",
-  description: "A 2D game with AI players",
+  title: "Backstabber",
+  description: "Backstabber – a 2D stealthy arena with AI opponents.",
+  openGraph: {
+    title: "Backstabber",
+    description: "Backstabber – a 2D stealthy arena with AI opponents.",
+    images: [
+      {
+        url: "/dagger.png",
+        width: 256,
+        height: 256,
+        alt: "Backstabber dagger",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Backstabber",
+    description: "Backstabber – a 2D stealthy arena with AI opponents.",
+    images: ["/dagger.png"],
+  },
+  icons: {
+    icon: "/dagger.png",
+  },
 };
 
 export default function RootLayout({

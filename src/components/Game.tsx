@@ -33,7 +33,7 @@ const Game = () => {
       visionDistance: 40 * 5 // 5x the body size - slightly larger than AI
     }
   });// AI Manager configuration
-  const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
+  const [aiManagerConfig] = useState<AIManagerConfig>({
     maxBots: 2, // Default to 2 bots maximum
     spawnLocation: { x: 200, y: 200 }, // This will be overridden by the MapLayout system
     minSpawnDelay: 3000, // Min 3 seconds between spawns
@@ -715,107 +715,9 @@ const Game = () => {
       <div className="mt-2 md:mt-6 p-2 md:p-4 bg-gray-100 dark:bg-zinc-800 rounded-md w-full max-w-4xl shadow-md game-controls">
           <div className="flex flex-col items-start mb-4">          <h2 className="font-bold mb-3">Game Controls:</h2>
           
-          <div className="flex flex-wrap items-center gap-4 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Fixed Map Layout:</span>
-              <span className="text-sm text-green-600 dark:text-green-400">{boxes.length} walls</span>
-            </div>
-            <button 
-              className="bg-blue-500 text-white px-3 md:px-4 py-1 md:py-2 text-sm md:text-base rounded hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
-              onClick={() => {
-                const canvas = canvasRef.current;
-                if (canvas) {
-                  setBoxes(generateMapLayout(canvas.width, canvas.height));
-                } else {
-                  setBoxes(generateMapLayout());
-                }
-              }}
-            >
-              Reset Map
-            </button>
-          </div>
-          
-          <div className="flex flex-col gap-3 w-full">
-            <h3 className="font-bold text-sm">AI Bot Settings:</h3>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label htmlFor="maxBots" className="text-sm">Max Bots:</label>
-                <input 
-                  type="range" 
-                  id="maxBots"
-                  min="1" 
-                  max="4" 
-                  value={aiManagerConfig.maxBots}
-                  className="w-16 md:w-24 accent-blue-500 dark:accent-blue-400"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
-                    ...aiManagerConfig,
-                    maxBots: parseInt(e.target.value)
-                  })}
-                />
-                <span className="text-sm">{aiManagerConfig.maxBots}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <label htmlFor="minDelay" className="text-sm">Min Delay (ms):</label>
-                <input 
-                  type="number"
-                  id="minDelay" 
-                  min="500" 
-                  max="10000" 
-                  step="500" 
-                  value={aiManagerConfig.minSpawnDelay}
-                  className="w-16 md:w-20 px-2 py-1 border rounded text-sm"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
-                    ...aiManagerConfig,
-                    minSpawnDelay: parseInt(e.target.value)
-                  })}
-                />
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <label htmlFor="maxDelay" className="text-sm">Max Delay (ms):</label>
-                <input 
-                  type="number"
-                  id="maxDelay" 
-                  min="1000" 
-                  max="20000"
-                  step="500" 
-                  value={aiManagerConfig.maxSpawnDelay}
-                  className="w-16 md:w-20 px-2 py-1 border rounded text-sm"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
-                    ...aiManagerConfig,
-                    maxSpawnDelay: parseInt(e.target.value)
-                  })}
-                />
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <label htmlFor="aiEnabled" className="text-sm">AI Enabled:</label>
-                <input 
-                  type="checkbox"
-                  id="aiEnabled"
-                  checked={aiManagerConfig.enabled}
-                  className="w-4 h-4 accent-blue-500"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiManagerConfig({
-                    ...aiManagerConfig,
-                    enabled: e.target.checked
-                  })}
-                />
-              </div>
-              
-              <button 
-                className="bg-red-500 text-white px-3 md:px-4 py-1 md:py-2 text-sm md:text-base rounded hover:bg-red-600 transition-colors"
-                onClick={() => {
-                  // Find all AI players and mark them as dead
-                  const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
-                  aiPlayers.forEach((ai: Player) => aiManagerRef.current?.markAIDead(ai.id));
-                }}
-              >
-                Kill All Bots
-              </button>
-            </div>
-          </div></div>
+          {/* End of Game Controls container inner flex */}
+        </div>
+        {/* End of Game Controls outer container */}
         <ul className="list-disc pl-5">
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">W</span> - Move Forward</li>
           <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">S</span> - Move Backward</li>
