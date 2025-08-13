@@ -21,6 +21,20 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // Ensure dagger image is served with proper CORS headers
+        source: '/dagger.png',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
     ];
   },
 };
