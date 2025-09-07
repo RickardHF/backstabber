@@ -5,9 +5,10 @@ import { useIsMobile } from './game/useIsMobile';
 
 interface StartScreenProps {
   onGameStart: () => void;
+  onShowLore: () => void;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ onGameStart }) => {
+const StartScreen: React.FC<StartScreenProps> = ({ onGameStart, onShowLore }) => {
   const isMobile = useIsMobile();
     return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-screen-lg mx-auto p-4">
@@ -16,12 +17,18 @@ const StartScreen: React.FC<StartScreenProps> = ({ onGameStart }) => {
         <p className="text-base md:text-lg text-center text-[var(--muted)] leading-relaxed max-w-xl mx-auto">
           A stealth skirmish of shadows and steel. Circle unseen, pierce the blind side, vanish before the echo.
         </p>
-        <div className="flex justify-center">
-          <button 
+        <div className="flex justify-center gap-4 flex-wrap">
+          <button
             onClick={onGameStart}
             className="btn-medieval btn-medieval--primary"
           >
             Enter Arena
+          </button>
+          <button
+            onClick={onShowLore}
+            className="btn-medieval"
+          >
+            Lore
           </button>
         </div>
         <div className="p-4 rounded-md bg-[var(--background-alt)]/60 border border-[var(--panel-border)] shadow-inner">

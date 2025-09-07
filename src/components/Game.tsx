@@ -10,7 +10,11 @@ import { useOrientation } from './game/useOrientation';
 import { generateMapLayout, getUserSpawnPoint } from './game/MapLayout';
 import { debugSpriteLoading } from '../utils/debugSprites';
 
-const Game = () => {
+interface GameProps {
+  onExitToMenu?: () => void;
+}
+
+const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   
   // Get user spawn point from map layout
@@ -722,12 +726,22 @@ const Game = () => {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75">
             <h2 className="game-title text-5xl text-[var(--accent-glow)] mb-4 drop-shadow-[0_0_12px_rgba(255,77,57,0.5)]">Fallen</h2>
             <p className="font-pixel text-xs tracking-wide mb-6 opacity-80">Slain by an AI sentry</p>
-            <button 
-              className="btn-medieval btn-medieval--primary px-6 py-3"
-              onClick={resetGame}
-            >
-              Rise Again
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <button 
+                className="btn-medieval btn-medieval--primary px-6 py-3"
+                onClick={resetGame}
+              >
+                Rise Again
+              </button>
+              {onExitToMenu && (
+                <button
+                  className="btn-medieval px-6 py-3"
+                  onClick={onExitToMenu}
+                >
+                  Main Menu
+                </button>
+              )}
+            </div>
             <p className="font-pixel text-[10px] mt-5 opacity-60">Press SPACE to restart</p>
           </div>        )}
       </div>        {/* Mobile Controls */}

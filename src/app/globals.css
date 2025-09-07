@@ -24,6 +24,8 @@
   --warning: #d6a548;
   --font-display: var(--font-medieval-display);
   --font-pixel: var(--font-pixel);
+  --lore-duration: 18s; /* duration of lore scroll */
+  --lore-delay: 0.6s; /* slight delay before scroll begins */
 }
 
 /* (Removed experimental @theme directive – using raw CSS variables instead) */
@@ -326,4 +328,13 @@ body {
 
 .mobile-landscape-game:fullscreen .game-header:hover {
   opacity: 1;
+}
+
+/* Lore scroll animation */
+.lore-scroll { position: absolute; bottom: 0; width: 100%; max-width: 100%; animation: none; will-change: transform; transform: translateY(100%); }
+.lore-scroll-start { animation: loreRoll var(--lore-duration) linear var(--lore-delay) forwards; }
+@keyframes loreRoll { from { transform: translateY(100%); } to { transform: translateY(-120%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lore-scroll-start { animation-duration: 0.01ms; animation-delay: 0s; }
 }
