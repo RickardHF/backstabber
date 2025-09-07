@@ -73,6 +73,7 @@ export const updatePlayer = (
   const rotationSpeed = player.rotationSpeed || 0.05; // radians per second
   const rotationDelta = rotationSpeed * deltaTimeSeconds; // frame scaled rotation
   const moveDeltaBase = player.speed * deltaTimeSeconds; // frame scaled movement (pixels this frame)
+  let attemptedMove = false; // track whether any translational movement was requested this frame
 
   // Handle joystick input if provided
   if (joystickInput && (Math.abs(joystickInput.x) > 0.1 || Math.abs(joystickInput.y) > 0.1)) {
@@ -96,8 +97,11 @@ export const updatePlayer = (
     
     // Move in the direction of the joystick
     const moveSpeed = Math.sqrt(joystickInput.x * joystickInput.x + joystickInput.y * joystickInput.y);
-  newX += Math.cos(targetRotation) * moveDeltaBase * moveSpeed;
-  newY += Math.sin(targetRotation) * moveDeltaBase * moveSpeed;
+    if (moveSpeed > 0.05) { // deadzone check (slightly smaller than initial threshold)
+      newX += Math.cos(targetRotation) * moveDeltaBase * moveSpeed;
+      newY += Math.sin(targetRotation) * moveDeltaBase * moveSpeed;
+      attemptedMove = true;
+    }
     
     // Update direction based on rotation angle
     if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
@@ -149,14 +153,29 @@ export const updatePlayer = (
     
     // Move forward with 'w' key
     if (keysPressed['w']) {
-  newX += Math.cos(newRotation) * moveDeltaBase;
-  newY += Math.sin(newRotation) * moveDeltaBase;
+      newX += Math.cos(newRotation) * moveDeltaBase;
+      newY += Math.sin(newRotation) * moveDeltaBase;
+      attemptedMove = true;
     }
-    
     // Move backward with 's' key
     if (keysPressed['s']) {
-  newX -= Math.cos(newRotation) * moveDeltaBase;
-  newY -= Math.sin(newRotation) * moveDeltaBase;
+      newX -= Math.cos(newRotation) * moveDeltaBase;
+      newY -= Math.sin(newRotation) * moveDeltaBase;
+      attemptedMove = true;
+    }
+  }
+
+  // If we moved forward/backward without changing rotation (so direction still 'none'),
+  // derive a cardinal direction from current rotation so walking animation triggers.
+  if (attemptedMove && newDirection === 'none') {
+    if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
+      newDirection = 'right';
+    } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
+      newDirection = 'down';
+    } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
+      newDirection = 'left';
+    } else {
+      newDirection = 'up';
     }
   }
   // Keep player within canvas bounds
@@ -210,6 +229,11 @@ export const updatePlayer = (
     }
   }
   
+  // If no move input actually applied, mark direction as none so idle animation shows
+  if (!attemptedMove) {
+    newDirection = 'none';
+  }
+
   const updatedPlayer = {
     ...player,
     x: finalX,

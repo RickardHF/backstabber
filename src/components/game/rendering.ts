@@ -320,7 +320,7 @@ const initializeSprites = async () => {
         frameWidth: 32,
         frameHeight: 32,
         frameCount: 17, // 17 movement frames
-        animationSpeed: 12, // 12 fps for smoother animation
+        animationSpeed: 30, // Faster walking animation
         spriteType: 'character'
       });
     }
@@ -331,7 +331,7 @@ const initializeSprites = async () => {
         frameWidth: 32,
         frameHeight: 32,
         frameCount: 17, // 17 movement frames
-        animationSpeed: 12, // 12 fps for smoother animation
+        animationSpeed: 30, // Faster walking animation
         spriteType: 'enemy'
       });
     }

@@ -235,9 +235,12 @@ export class CharacterSprite {
   
   // Get the current idle animation frame (slower animation)
   private getCurrentIdleFrame(deltaTime: number): number {
-    this.idleAnimationTime += deltaTime;
-    const idleFrameTime = 1000 / (this.config.animationSpeed * 0.5); // Half speed for idle
-    return Math.floor(this.idleAnimationTime / idleFrameTime) % this.config.frameCount;
+  // For now we only want a single waiting frame (first frame). If later we
+  // add subtle breathing animation we can re-enable timing logic below.
+  // this.idleAnimationTime += deltaTime;
+  // const idleFrameTime = 1000 / (this.config.animationSpeed * 0.5); // Half speed for idle
+  // return Math.floor(this.idleAnimationTime / idleFrameTime) % this.config.frameCount;
+  return 0; // Always use first frame while idle
   }
   
   // Convert player rotation to sprite direction (0-7)
@@ -283,12 +286,12 @@ export class CharacterSprite {
       frame = this.getCurrentFrame(deltaTime);
       sourceX = frameWidth; // 2nd column
     } else {
-      // Idle animation - 1st column (column index 0), 17 frames
-      frame = this.getCurrentIdleFrame(deltaTime);
+      // Idle state: show only the very first frame (no animation)
+      frame = 0; // ensure we always use the first row frame index 0
       sourceX = 0; // 1st column
     }
     
-    const sourceY = frame * frameHeight; // Row based on animation frame
+    const sourceY = frame * frameHeight; // Row based on animation frame (always 0 for idle)
       // Calculate destination size (scale with player size)
     const destSize = player.size * 2.5; // Increased from 2 to 2.5 to make character look larger
     const destX = player.x - destSize / 2;
@@ -336,7 +339,7 @@ export const createCharacterSprite = (config: SpriteConfig = {
   frameWidth: 32,
   frameHeight: 32,
   frameCount: 17, // 17 movement frames for walking animation
-  animationSpeed: 12, // 12 fps for smoother animation with more frames
+  animationSpeed: 30, // Faster walking animation
   useImageFile: true, // Use image file by default
   spriteSheetUrl: '/sprites/charactersprites.png', // Path to sprite sheet in public folder
   spriteType: 'character'
@@ -349,7 +352,7 @@ export const createEnemySprite = (config: SpriteConfig = {
   frameWidth: 32,
   frameHeight: 32,
   frameCount: 17, // 17 movement frames for walking animation
-  animationSpeed: 12, // 12 fps for smoother animation with more frames
+  animationSpeed: 30, // Faster walking animation
   useImageFile: true, // Use image file by default
   spriteSheetUrl: '/sprites/enemysprites.png', // Path to enemy sprite sheet in public folder
   spriteType: 'enemy'
@@ -366,7 +369,7 @@ export const createCharacterSpriteFromImage = (
     frameWidth: 32,
     frameHeight: 32,
     frameCount: 17, // 17 movement frames
-    animationSpeed: 12, // 12 fps for smoother animation
+  animationSpeed: 30, // Faster walking animation
     useImageFile: true,
     spriteSheetUrl,
     spriteType: 'character', // Default to character type
@@ -384,7 +387,7 @@ export const createEnemySpriteFromImage = (
     frameWidth: 32,
     frameHeight: 32,
     frameCount: 17, // 17 movement frames
-    animationSpeed: 12, // 12 fps for smoother animation
+  animationSpeed: 30, // Faster walking animation
     useImageFile: true,
     spriteSheetUrl,
     spriteType: 'enemy',
