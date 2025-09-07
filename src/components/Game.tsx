@@ -85,6 +85,7 @@ const Game = () => {
     
     // Check each AI bot to see if player can backstab it
     for (const aiPlayer of aiPlayers) {
+      if (aiPlayer.isDead) continue; // skip corpses
       const aiVision = aiManagerRef.current.getAIVision(aiPlayer.id);
       
       if (aiVision && isPlayerBehindAI(player, aiPlayer, aiVision)) {
@@ -456,26 +457,28 @@ const Game = () => {
       drawBox(offCtx, box);
     });
         // Get all active AI players
-    const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+  const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
     
     // Draw the AI vision cones and players on offscreen canvas
     aiPlayers.forEach(aiPlayer => {
       const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
       
       if (aiVision) {
-        // Draw the AI vision cone above boxes but behind players
-        drawAiVisionCone(
-          offCtx, 
-          aiPlayer, 
-          aiVision.canSeePlayer, 
-          aiVision.visionConeAngle, 
-          aiVision.visionDistance, 
-          boxes, 
-          player
-        );
+        if (!aiPlayer.isDead) {
+          // Draw vision cone only for alive AI
+          drawAiVisionCone(
+            offCtx, 
+            aiPlayer, 
+            aiVision.canSeePlayer, 
+            aiVision.visionConeAngle, 
+            aiVision.visionDistance, 
+            boxes, 
+            player
+          );
+        }
         
         // Check if player is behind this AI and highlight it as vulnerable
-        if (!player.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
+        if (!player.isDead && !aiPlayer.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
           // Draw a targeting indicator around the AI
           offCtx.beginPath();
           offCtx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
@@ -560,6 +563,7 @@ const Game = () => {
           
           // Check intersection with AI players
           for (const aiPlayer of aiPlayers) {
+            if (aiPlayer.isDead) continue; // corpses do not occlude vision
             // Create a box representation of the AI player
             const aiBox = {
               ...aiPlayer,

@@ -26,6 +26,10 @@ export interface Player extends GameObject {
   isAI?: boolean;
   isDead?: boolean;
   isAttacking?: boolean;
+  /**
+   * Progress of death animation 0..1 (undefined if alive)
+   */
+  deathAnimationProgress?: number;
   vision?: { 
     visionConeAngle: number;  // Field of view angle in degrees
     visionDistance: number;   // How far the player can see

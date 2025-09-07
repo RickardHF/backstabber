@@ -360,6 +360,31 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
 
     // Use sprite rendering
     if (sprite) {
+      // Handle death animation for AI enemies (4th column, 6 frames)
+      if (p.isAI && p.isDead && (sprite as any).getImage) {
+        const img: HTMLImageElement | null = (sprite as any).getImage();
+        const cfg = (sprite as any).getConfig?.();
+        if (img && cfg) {
+          const frameWidth = cfg.frameWidth;
+          const frameHeight = cfg.frameHeight;
+          const deathFrames = 6; // rows
+          const columnIndex = 3; // 4th column
+          const progress = p.deathAnimationProgress ?? 0;
+          const rawFrame = progress >= 1 ? deathFrames - 1 : Math.min(deathFrames - 1, Math.floor(progress * deathFrames));
+          const sx = frameWidth * columnIndex;
+          const sy = frameHeight * rawFrame;
+          const destSize = p.size * 2.5;
+          const destX = p.x - destSize / 2;
+          const destY = p.y - destSize / 2;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rotation + Math.PI / 2);
+          ctx.translate(-p.x, -p.y);
+          ctx.drawImage(img, sx, sy, frameWidth, frameHeight, destX, destY, destSize, destSize);
+          ctx.restore();
+          return; // done drawing dead enemy
+        }
+      }
       sprite.render(ctx, p, deltaTime, p.isAI || false);
       
       // Draw direction indicator line if moving

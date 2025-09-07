@@ -12,6 +12,9 @@ export class AIManager {
   private config: AIManagerConfig;
   private nextSpawnTime: number = 0;
   private lastUpdateTime: number | null = null;
+  // Track death animation timing per AI id
+  private deadAIStartTimes: Record<string, number> = {};
+  private deathAnimationDurationMs: number = 500; // enemy death anim length
   
   constructor(config: AIManagerConfig) {
     this.config = config;
@@ -45,30 +48,31 @@ export class AIManager {
     }
     
     // Update each AI player
+    const now = performance.now();
     for (let i = 0; i < this.aiPlayers.length; i++) {
       const aiPlayer = this.aiPlayers[i];
-      
-      // Skip if AI player is marked as dead
-      if (aiPlayer.isDead) continue;
-      
-      // Update this AI player
+      if (aiPlayer.isDead) {
+        // Progress death animation
+        const start = this.deadAIStartTimes[aiPlayer.id];
+        if (start) {
+          const progress = Math.min(1, (now - start) / this.deathAnimationDurationMs);
+          this.aiPlayers[i] = { ...aiPlayer, deathAnimationProgress: progress };
+        }
+        continue; // skip movement
+      }
       const { updatedAiPlayer, updatedAiVision } = updateAiPlayer(
         aiPlayer,
         player,
         this.aiVisions[i],
         canvas,
         boxes,
-        // Pass other AI players as obstacles for collision detection
         this.aiPlayers.filter(p => p.id !== aiPlayer.id && !p.isDead),
         deltaTimeSeconds
       );
-      
-      // Update the AI player and vision
       this.aiPlayers[i] = updatedAiPlayer;
       this.aiVisions[i] = updatedAiVision;
     }
-    
-    // Remove any AI players marked as dead
+    // Remove fully finished death animations (after freeze frame delay)
     this.removeDeadAIPlayers();
   }
     /**
@@ -184,19 +188,18 @@ export class AIManager {
    * Removes AI players that are marked as dead
    */
   private removeDeadAIPlayers(): void {
-    // Find indices of dead AI players
-    const deadIndices: number[] = [];
-    for (let i = 0; i < this.aiPlayers.length; i++) {
-      if (this.aiPlayers[i].isDead) {
-        deadIndices.push(i);
+    const removalDelay = this.deathAnimationDurationMs + 2000; // keep corpse for a while
+    const now = performance.now();
+    for (let i = this.aiPlayers.length - 1; i >= 0; i--) {
+      const p = this.aiPlayers[i];
+      if (p.isDead) {
+        const start = this.deadAIStartTimes[p.id];
+        if (start && now - start > removalDelay) {
+          this.aiPlayers.splice(i, 1);
+          this.aiVisions.splice(i, 1);
+          delete this.deadAIStartTimes[p.id];
+        }
       }
-    }
-    
-    // Remove them in reverse order to avoid index shifting issues
-    for (let i = deadIndices.length - 1; i >= 0; i--) {
-      const index = deadIndices[i];
-      this.aiPlayers.splice(index, 1);
-      this.aiVisions.splice(index, 1);
     }
   }
   
@@ -206,7 +209,10 @@ export class AIManager {
   markAIDead(aiId: string): void {
     const index = this.aiPlayers.findIndex(ai => ai.id === aiId);
     if (index !== -1) {
-      this.aiPlayers[index].isDead = true;
+  // Ignore if already dead
+  if (this.aiPlayers[index].isDead) return;
+  this.aiPlayers[index] = { ...this.aiPlayers[index], isDead: true, deathAnimationProgress: 0 };
+  this.deadAIStartTimes[aiId] = performance.now();
     }
   }
   
@@ -214,7 +220,8 @@ export class AIManager {
    * Gets all active AI players
    */
   getAIPlayers(): Player[] {
-    return this.aiPlayers.filter(ai => !ai.isDead);
+  // Return all including dead (so renderer can animate corpses); caller can filter
+  return this.aiPlayers;
   }
   
   /**
