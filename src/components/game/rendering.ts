@@ -361,9 +361,9 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
     // Use sprite rendering
     if (sprite) {
       // Handle death animation for AI enemies (4th column, 6 frames)
-      if (p.isAI && p.isDead && (sprite as any).getImage) {
-        const img: HTMLImageElement | null = (sprite as any).getImage();
-        const cfg = (sprite as any).getConfig?.();
+      if (p.isAI && p.isDead && sprite.getImage) {
+        const img: HTMLImageElement | null = sprite.getImage();
+        const cfg = sprite.getConfig?.();
         if (img && cfg) {
           const frameWidth = cfg.frameWidth;
           const frameHeight = cfg.frameHeight;
@@ -420,12 +420,12 @@ export const drawPlayerDeath = (
 
   // Attempt to use the loaded character sprite sheet for death frames (4th column, 6 rows)
   // Fallback to simple circle fade if sprite not ready
-  const sprite = (characterSprite); // reuse existing loaded character sprite
+  const sprite = characterSprite; // reuse existing loaded character sprite
   const deathFrameCount = 6; // 6 rows in the 4th column
 
-  if (sprite && (sprite as any).getImage) {
-    const img: HTMLImageElement | null = (sprite as any).getImage();
-    const cfg = (sprite as any).getConfig?.();
+  if (sprite && sprite.getImage) {
+    const img: HTMLImageElement | null = sprite.getImage();
+    const cfg = sprite.getConfig?.();
     if (img && cfg) {
       const frameWidth = cfg.frameWidth;
       const frameHeight = cfg.frameHeight;

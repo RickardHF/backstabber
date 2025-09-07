@@ -114,7 +114,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   }, [player, attackCooldown]);
 
   // Function to handle player death
-  const handlePlayerDeath = (killingAI: Player) => {
+  const handlePlayerDeath = useCallback((killingAI: Player) => {
     // Prevent multiple death triggers if player is already dead
     if (player.isDead) {
       return;
@@ -162,7 +162,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     };
     
     requestAnimationFrame(animatePlayerDeath);
-  };  
+  }, [player.isDead, aiManagerRef]);  
   // Reset game function - moved up to be defined before it's used in dependencies
   const resetGame = useCallback(() => {
     // Cancel any ongoing animation
@@ -271,7 +271,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       console.log("Initializing AI Manager with config:", aiManagerConfig);
       aiManagerRef.current = new AIManager(aiManagerConfig);
     }
-  }, []);
+  }, [aiManagerConfig]);
     // Mobile controls
   const isMobile = useIsMobile();
   const orientation = useOrientation();
@@ -288,12 +288,12 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         fullscreen.enterFullscreen();
       }, 100);
     }
-  }, [isMobile, orientation.isLandscape, fullscreen.isFullscreen, fullscreen.isSupported, fullscreen.enterFullscreen]);
+  }, [isMobile, orientation.isLandscape, fullscreen]);
   
   // Handle fullscreen button click
   const handleFullscreenToggle = useCallback(() => {
     fullscreen.toggleFullscreen();
-  }, [fullscreen.toggleFullscreen]);
+  }, [fullscreen]);
 
   // Handle mobile joystick movement
   const handleJoystickMove = useCallback((direction: { x: number; y: number }) => {
@@ -355,7 +355,162 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     if (aiManagerRef.current) {
       aiManagerRef.current.updateConfig(aiManagerConfig);
     }
-  }, [aiManagerConfig]);    // Game loop
+  }, [aiManagerConfig]);
+
+  // Render the game (memoized to avoid recreating in effects unless deps change)
+  const renderGame = useCallback(() => {
+    // Prepare per-frame timing for sprite animations
+    startFrameTiming();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw a grid for the top-down view
+    drawGrid(ctx, canvas);
+    // Create an offscreen canvas to draw the full scene first
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = canvas.width;
+    offscreenCanvas.height = canvas.height;
+    const offCtx = offscreenCanvas.getContext('2d');
+    if (!offCtx) return;
+    // Draw grid on the offscreen canvas
+    drawGrid(offCtx, offscreenCanvas);
+    // Draw boxes first so they appear as background obstacles
+    boxes.forEach(box => { drawBox(offCtx, box); });
+    const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+    aiPlayers.forEach(aiPlayer => {
+      const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
+      if (aiVision) {
+        if (!aiPlayer.isDead) {
+          drawAiVisionCone(
+            offCtx,
+            aiPlayer,
+            aiVision.canSeePlayer,
+            aiVision.visionConeAngle,
+            aiVision.visionDistance,
+            boxes,
+            player
+          );
+        }
+        if (!player.isDead && !aiPlayer.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
+          offCtx.beginPath();
+          offCtx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
+          offCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+          offCtx.lineWidth = 2;
+          offCtx.setLineDash([4, 2]);
+          offCtx.stroke();
+          offCtx.setLineDash([]);
+          offCtx.font = '12px Arial';
+          offCtx.fillStyle = 'red';
+          offCtx.textAlign = 'center';
+          offCtx.fillText('Backstab!', aiPlayer.x, aiPlayer.y - aiPlayer.size - 10);
+        }
+      }
+      drawPlayer(offCtx, aiPlayer);
+    });
+    if (player.isDead) {
+      drawPlayerDeath(offCtx, player, deathAnimation.killedBy, deathAnimation.progress);
+      if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 1) {
+        const overlayOpacity = (deathAnimation.progress - 0.5) * 2 * 0.5;
+        offCtx.save();
+        offCtx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
+        offCtx.fillRect(0, 0, canvas.width, canvas.height);
+        offCtx.restore();
+      }
+      ctx.drawImage(offscreenCanvas, 0, 0);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      if (player.vision) {
+        const selfVisibilityRadius = player.size * 3;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, selfVisibilityRadius, 0, Math.PI * 2);
+        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = player.rotation || 0;
+        const startAngle = baseAngle - visionConeAngleRad / 2;
+        const rayCount = 60;
+        ctx.moveTo(player.x, player.y);
+        for (let i = 0; i <= rayCount; i++) {
+          const rayAngle = startAngle + (i / rayCount) * visionConeAngleRad;
+          const dirX = Math.cos(rayAngle);
+          const dirY = Math.sin(rayAngle);
+          let rayLength = player.vision.visionDistance;
+          for (const box of boxes) {
+            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, box);
+            if (dist !== null && dist < rayLength) { rayLength = dist; }
+          }
+          for (const aiPlayer of aiPlayers) {
+            if (aiPlayer.isDead) continue;
+            const aiBox = { ...aiPlayer, width: aiPlayer.size * 2, height: aiPlayer.size * 2, color: 'unused' };
+            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, aiBox as Box);
+            if (dist !== null && dist < rayLength) {
+              const guaranteedVisibleDistance = 30;
+              const extendedDistance = dist + guaranteedVisibleDistance;
+              rayLength = Math.min(rayLength, extendedDistance);
+            }
+          }
+          const endX = player.x + dirX * rayLength;
+          const endY = player.y + dirY * rayLength;
+          ctx.lineTo(endX, endY);
+        }
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(offscreenCanvas, 0, 0);
+        ctx.restore();
+      }
+      drawPlayer(ctx, player);
+      if (graceActive) {
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.size + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(64, 196, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([2, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'rgba(64, 196, 255, 0.8)';
+        ctx.textAlign = 'center';
+        ctx.fillText('Shield Active', player.x, player.y - player.size - 10);
+      }
+      if (player.vision) {
+        ctx.save();
+        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = player.rotation || 0;
+        const startAngle = baseAngle - visionConeAngleRad / 2;
+        const endAngle = baseAngle + visionConeAngleRad / 2;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y);
+        ctx.arc(player.x, player.y, player.vision.visionDistance, startAngle, endAngle);
+        ctx.closePath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+      if (!graceActive && !player.isDead && player.vision) {
+        ctx.save();
+        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = player.rotation || 0;
+        const blindSpotStartAngle = baseAngle + visionConeAngleRad / 2;
+        const blindSpotEndAngle = baseAngle - visionConeAngleRad / 2 + 2 * Math.PI;
+        const indicatorDistance = player.size * 2;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y);
+        ctx.arc(player.x, player.y, indicatorDistance, blindSpotStartAngle, blindSpotEndAngle);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }, [boxes, player, deathAnimation.killedBy, deathAnimation.progress, graceActive]);
+
+    // Game loop
   useEffect(() => {
     // Don't run game loop if game is not active
     if (!gameActive) return;
@@ -416,7 +571,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       }
       
       // Render game
-      renderGame();
+  renderGame();
       
       // Continue the game loop if game is active
       if (gameActive && (!player.isDead || (player.isDead && deathAnimation.progress < 1))) {
@@ -428,259 +583,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile, deathAnimation.progress, graceActive]);
-    // Render the game
-  const renderGame = () => {
-    // Prepare per-frame timing for sprite animations
-    startFrameTiming();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw a grid for the top-down view
-    drawGrid(ctx, canvas);
-    
-    // Create an offscreen canvas to draw the full scene first
-    const offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = canvas.width;
-    offscreenCanvas.height = canvas.height;
-    const offCtx = offscreenCanvas.getContext('2d');
-    
-    if (!offCtx) return;
-    
-    // Draw grid on the offscreen canvas
-    drawGrid(offCtx, offscreenCanvas);
-    
-    // Draw boxes first so they appear as background obstacles
-    boxes.forEach(box => {
-      drawBox(offCtx, box);
-    });
-        // Get all active AI players
-  const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
-    
-    // Draw the AI vision cones and players on offscreen canvas
-    aiPlayers.forEach(aiPlayer => {
-      const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
-      
-      if (aiVision) {
-        if (!aiPlayer.isDead) {
-          // Draw vision cone only for alive AI
-          drawAiVisionCone(
-            offCtx, 
-            aiPlayer, 
-            aiVision.canSeePlayer, 
-            aiVision.visionConeAngle, 
-            aiVision.visionDistance, 
-            boxes, 
-            player
-          );
-        }
-        
-        // Check if player is behind this AI and highlight it as vulnerable
-        if (!player.isDead && !aiPlayer.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
-          // Draw a targeting indicator around the AI
-          offCtx.beginPath();
-          offCtx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
-          offCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';  
-          offCtx.lineWidth = 2;
-          offCtx.setLineDash([4, 2]);
-          offCtx.stroke();
-          offCtx.setLineDash([]);
-          
-          // Add text hint above the AI
-          offCtx.font = '12px Arial';
-          offCtx.fillStyle = 'red';
-          offCtx.textAlign = 'center';
-          offCtx.fillText('Backstab!', aiPlayer.x, aiPlayer.y - aiPlayer.size - 10);
-        }
-      }
-      
-      // Then draw AI player
-      drawPlayer(offCtx, aiPlayer);
-    });    if (player.isDead) {
-      // Draw death animation instead of normal player
-      drawPlayerDeath(offCtx, player, deathAnimation.killedBy, deathAnimation.progress);
-      
-      // For visual effect only - draw a darker overlay when the animation is progressing
-      // The actual UI elements are handled by the React overlay
-  if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 1) {
-        const overlayOpacity = (deathAnimation.progress - 0.5) * 2 * 0.5; // 0 to 0.5 opacity
-        offCtx.save();
-        offCtx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
-        offCtx.fillRect(0, 0, canvas.width, canvas.height);
-        offCtx.restore();
-      }
-      
-      // In death state, show the entire map
-      ctx.drawImage(offscreenCanvas, 0, 0);
-    } else {
-      // Player is alive, create vision cone mask
-      
-      // Clear the final canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw the player's vision cone to create the clipping mask
-      ctx.save();
-      
-      if (player.vision) {
-        // Use larger visibility around the player itself to ensure they can always see themselves clearly
-        const selfVisibilityRadius = player.size * 3;
-        
-        // Start creating the clipping path for the vision cone
-        ctx.beginPath();
-        // First add a circle around the player for self-visibility
-        ctx.arc(player.x, player.y, selfVisibilityRadius, 0, Math.PI * 2);
-        
-        // Then add the vision cone
-        // Create vision cone path
-        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = player.rotation || 0;
-        const startAngle = baseAngle - visionConeAngleRad / 2;
-        const rayCount = 60;
-        
-        // Starting point of the vision cone (player's position)
-        ctx.moveTo(player.x, player.y);
-        
-        // Cast rays to create the vision cone path
-        for (let i = 0; i <= rayCount; i++) {
-          const rayAngle = startAngle + (i / rayCount) * visionConeAngleRad;
-          
-          // Calculate ray direction
-          const dirX = Math.cos(rayAngle);
-          const dirY = Math.sin(rayAngle);
-          
-          // Initialize rayLength to the vision distance
-          let rayLength = player.vision.visionDistance;
-          
-          // Check intersection with each box and update rayLength if needed
-          for (const box of boxes) {
-            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, box);
-            if (dist !== null && dist < rayLength) {
-              rayLength = dist;
-            }
-          }
-          
-          // Check intersection with AI players
-          for (const aiPlayer of aiPlayers) {
-            if (aiPlayer.isDead) continue; // corpses do not occlude vision
-            // Create a box representation of the AI player
-            const aiBox = {
-              ...aiPlayer,
-              width: aiPlayer.size * 2,
-              height: aiPlayer.size * 2,
-              color: 'unused'
-            };
-            
-            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, aiBox);
-            if (dist !== null && dist < rayLength) {
-              // Ensure at least 30px of the AI player remains visible
-              // by extending the ray beyond the AI player's center
-              const guaranteedVisibleDistance = 30;
-              const extendedDistance = dist + guaranteedVisibleDistance;
-              rayLength = Math.min(rayLength, extendedDistance);
-            }
-          }
-          
-          // Calculate the endpoint of the ray
-          const endX = player.x + dirX * rayLength;
-          const endY = player.y + dirY * rayLength;
-          
-          // Draw line to the endpoint
-          ctx.lineTo(endX, endY);
-        }
-        
-        // Close the path
-        ctx.closePath();
-        
-        // Create clipping region from the vision cone
-        ctx.clip();
-        
-        // Draw the offscreen canvas through the clipping mask
-        ctx.drawImage(offscreenCanvas, 0, 0);
-        
-        // Restore the context
-        ctx.restore();
-      }
-      
-      // Draw normal player on the main canvas
-      drawPlayer(ctx, player);
-      
-      // If grace period is active, draw a protective shield around the player
-      if (graceActive) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, player.size + 8, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(64, 196, 255, 0.8)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([2, 2]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
-        // Add shield text        ctx.font = '12px Arial';
-        ctx.fillStyle = 'rgba(64, 196, 255, 0.8)';
-        ctx.textAlign = 'center';
-        ctx.fillText('Shield Active', player.x, player.y - player.size - 10);
-      }
-      
-      // Draw a faint border for the vision cone so player can see their field of view
-      if (player.vision) {
-        ctx.save();
-        
-        // Create the vision cone outline
-        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = player.rotation || 0;
-        const startAngle = baseAngle - visionConeAngleRad / 2;
-        const endAngle = baseAngle + visionConeAngleRad / 2;
-        
-        // Draw the arc for the vision cone border
-        ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
-        ctx.arc(player.x, player.y, player.vision.visionDistance, startAngle, endAngle);
-        ctx.closePath();
-        
-        // Style for the vision cone border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
-        ctx.restore();
-      }
-    }
-    
-    // Draw a 'danger zone' indicator behind the player to show their blind spot
-    if (!graceActive && !player.isDead && player.vision) {
-      ctx.save();
-      
-      // Calculate the blind spot arc (area outside the vision cone)
-      const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
-      const baseAngle = player.rotation || 0;
-      
-      // The blind spot is the area behind the player
-      // It's calculated as the complementary angle of the vision cone
-      const blindSpotStartAngle = baseAngle + visionConeAngleRad / 2;
-      const blindSpotEndAngle = baseAngle - visionConeAngleRad / 2 + 2 * Math.PI;
-      
-      // Draw the blind spot indicator at a short distance behind the player
-      const indicatorDistance = player.size * 2;
-      
-      ctx.beginPath();
-      ctx.moveTo(player.x, player.y);
-      ctx.arc(player.x, player.y, indicatorDistance, blindSpotStartAngle, blindSpotEndAngle);
-      ctx.closePath();
-      
-      // Style for the blind spot indicator
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
-      ctx.fill();
-      
-      ctx.restore();
-    }
-  };
+  }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile, deathAnimation.progress, graceActive, renderGame, handlePlayerDeath]);
   return (    <div ref={gameContainerRef} className="flex flex-col items-center w-full max-w-screen-xl mx-auto p-2 md:p-4 mobile-landscape-game">
       <div className="flex items-center justify-between w-full mb-3 md:mb-5 game-header">
         <h1 className="game-title text-xl md:text-2xl lg:text-3xl">Arena</h1>

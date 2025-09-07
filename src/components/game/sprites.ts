@@ -237,15 +237,7 @@ export class CharacterSprite {
     return Math.floor(this.animationTime / frameTime) % 4; // 4 attack frames
   }
   
-  // Get the current idle animation frame (slower animation)
-  private getCurrentIdleFrame(deltaTime: number): number {
-  // For now we only want a single waiting frame (first frame). If later we
-  // add subtle breathing animation we can re-enable timing logic below.
-  // this.idleAnimationTime += deltaTime;
-  // const idleFrameTime = 1000 / (this.config.animationSpeed * 0.5); // Half speed for idle
-  // return Math.floor(this.idleAnimationTime / idleFrameTime) % this.config.frameCount;
-  return 0; // Always use first frame while idle
-  }
+  // Idle animation currently disabled (single frame always used)
   
   // Convert player rotation to sprite direction (0-7)
   private getDirectionFromRotation(rotation: number): number {

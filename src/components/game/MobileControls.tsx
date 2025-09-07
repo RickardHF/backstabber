@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 interface MobileControlsProps {
   onMovement: (direction: { x: number; y: number }) => void;
@@ -50,15 +50,15 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
   }, [size, isFullscreen]);
   
   const maxDistance = responsiveSize / 2 - 30; // 30px is half the knob size for larger knob
-    const handleStart = (clientX: number, clientY: number, touchIdentifier?: number) => {
+    const handleStart = useCallback((clientX: number, clientY: number, touchIdentifier?: number) => {
     setIsDragging(true);
     if (touchIdentifier !== undefined) {
       setTouchId(touchIdentifier);
     }
     handleMove(clientX, clientY);
-  };
+  }, [handleMove]);
   
-  const handleMove = (clientX: number, clientY: number) => {
+  const handleMove = useCallback((clientX: number, clientY: number) => {
     if (!joystickRef.current || !isDragging) return;
     
     const rect = joystickRef.current.getBoundingClientRect();
@@ -84,38 +84,38 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
     const normalizedY = newY / maxDistance;
     
     onMove({ x: normalizedX, y: normalizedY });
-  };
-    const handleEnd = () => {
+  }, [isDragging, onMove, maxDistance]);
+    const handleEnd = useCallback(() => {
     setIsDragging(false);
     setTouchId(null);
     setPosition({ x: 0, y: 0 });
     onMove({ x: 0, y: 0 });
-  };
+    }, [onMove]);
   
   // Mouse events
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     handleStart(e.clientX, e.clientY);
-  };
+  }, [handleStart]);
   
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     e.preventDefault();
     handleMove(e.clientX, e.clientY);
-  };
+  }, [handleMove]);
   
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     handleEnd();
-  };
+  }, [handleEnd]);
     // Touch events
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     if (isDragging) return; // Already tracking a touch
     
     const touch = e.touches[0];
     handleStart(touch.clientX, touch.clientY, touch.identifier);
-  };
+  }, [isDragging, handleStart]);
   
-  const handleTouchMove = (e: TouchEvent) => {
+  const handleTouchMove = useCallback((e: TouchEvent) => {
     e.preventDefault();
     if (!isDragging || touchId === null) return;
     
@@ -124,9 +124,9 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
     if (touch) {
       handleMove(touch.clientX, touch.clientY);
     }
-  };
+  }, [isDragging, touchId, handleMove]);
   
-  const handleTouchEnd = (e: TouchEvent) => {
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
     e.preventDefault();
     if (!isDragging || touchId === null) return;
     
@@ -135,7 +135,7 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
     if (!touchStillActive) {
       handleEnd();
     }
-  };
+  }, [isDragging, touchId, handleEnd]);
     useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -150,7 +150,7 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
         document.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [isDragging, touchId]);
+  }, [isDragging, touchId, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
   
   return (
     <div
