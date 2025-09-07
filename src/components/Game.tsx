@@ -345,7 +345,7 @@ const Game = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [tryAttack, player.isDead, deathAnimation.progress, resetGame]);
+  }, [tryAttack, player.isDead, deathAnimation.progress, deathAnimation.overlayReady, resetGame]);
   // Update AI Manager config when maxBots or spawnLocation changes
   useEffect(() => {
     if (aiManagerRef.current) {
@@ -676,27 +676,32 @@ const Game = () => {
       
       ctx.restore();
     }
-  };  return (    <div ref={gameContainerRef} className="flex flex-col items-center w-full max-w-screen-xl mx-auto p-2 md:p-4 mobile-landscape-game">
-      <div className="flex items-center justify-between w-full mb-2 md:mb-4 game-header">        <h1 className="text-lg md:text-xl lg:text-2xl font-bold">Backstabber Game</h1>
-        <div className="flex items-center gap-2">
-          <span className="mr-1 md:mr-2 font-bold text-xs md:text-sm lg:text-base">Defeated:</span>
-          <span className="bg-red-500 text-white px-1 md:px-2 lg:px-3 py-1 rounded-md text-xs md:text-sm lg:text-base">{defeatedEnemies}</span>          {isMobile && fullscreen.isSupported && (
+  };
+  return (    <div ref={gameContainerRef} className="flex flex-col items-center w-full max-w-screen-xl mx-auto p-2 md:p-4 mobile-landscape-game">
+      <div className="flex items-center justify-between w-full mb-3 md:mb-5 game-header">
+        <h1 className="game-title text-xl md:text-2xl lg:text-3xl">Arena</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 font-pixel text-[10px] tracking-wide">
+            <span className="opacity-70">DEFEATED</span>
+            <span className="hud-counter text-sm">{defeatedEnemies}</span>
+          </div>
+          {isMobile && fullscreen.isSupported && (
             <button
               onClick={handleFullscreenToggle}
-              className="p-1 md:p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs md:text-sm transition-colors flex items-center gap-1"
+              className="btn-medieval px-2 py-2 text-[10px]"
               title={fullscreen.isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
             >
-              <span>{fullscreen.isFullscreen ? "⊖" : "⊞"}</span>
-              <span className="hidden md:inline">{fullscreen.isFullscreen ? "Exit" : "Full"}</span>
+              {fullscreen.isFullscreen ? "Exit" : "Full"}
             </button>
           )}
         </div>
-      </div><div className="relative border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden shadow-lg w-full flex justify-center">
+      </div>
+      <div className="relative panel w-full flex justify-center p-2 md:p-3">
         <canvas 
           ref={canvasRef} 
           width={800} 
           height={600}
-          className="game-canvas block"
+          className="game-canvas block shadow-inner"
           style={{ 
             width: 'min(100vw - 2rem, 100%, 800px)',
             height: 'auto',
@@ -704,26 +709,26 @@ const Game = () => {
             maxHeight: 'min(75vh, 600px)'
           }}
         ></canvas>{attackCooldown && !player.isDead && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded">
-            Attack Cooldown
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 hud-counter bg-black/70 !text-[var(--accent-glow)]">
+            COOLING
           </div>
         )}
         {graceActive && !player.isDead && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 bg-opacity-70 text-white px-4 py-2 rounded">
-            Shield Active
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 hud-counter text-[var(--success)]">
+            SHIELD
           </div>
         )}
   {player.isDead && deathAnimation.overlayReady && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-70">
-            <h2 className="text-4xl font-bold text-red-500 mb-2">GAME OVER</h2>
-            <p className="text-xl text-white mb-6">Killed by AI Bot</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75">
+            <h2 className="game-title text-5xl text-[var(--accent-glow)] mb-4 drop-shadow-[0_0_12px_rgba(255,77,57,0.5)]">Fallen</h2>
+            <p className="font-pixel text-xs tracking-wide mb-6 opacity-80">Slain by an AI sentry</p>
             <button 
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg text-lg transition-colors"
+              className="btn-medieval btn-medieval--primary px-6 py-3"
               onClick={resetGame}
             >
-              Restart Game
+              Rise Again
             </button>
-            <p className="text-sm text-gray-300 mt-4">Press SPACE to restart</p>
+            <p className="font-pixel text-[10px] mt-5 opacity-60">Press SPACE to restart</p>
           </div>        )}
       </div>        {/* Mobile Controls */}
       <MobileControls
@@ -736,28 +741,30 @@ const Game = () => {
         isFullscreen={fullscreen.isFullscreen}
         fullscreenSupported={fullscreen.isSupported}
       />
-      <div className="mt-2 md:mt-6 p-2 md:p-4 bg-gray-100 dark:bg-zinc-800 rounded-md w-full max-w-4xl shadow-md game-controls">
-          <div className="flex flex-col items-start mb-4">          <h2 className="font-bold mb-3">Game Controls:</h2>
+    <div className="mt-3 md:mt-6 p-3 md:p-5 panel w-full max-w-4xl game-controls space-y-4">
+      <div className="flex flex-col items-start mb-2">
+      <h2 className="font-pixel text-xs tracking-wider text-[var(--gold)] mb-1">GAME CONTROLS</h2>
           
           {/* End of Game Controls container inner flex */}
         </div>
         {/* End of Game Controls outer container */}
-        <ul className="list-disc pl-5">
-          <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">W</span> - Move Forward</li>
-          <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">S</span> - Move Backward</li>
-          <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">A</span> - Rotate Left</li>
-          <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">D</span> - Rotate Right</li>
-          <li><span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> - Attack (Backstab)</li>
+        <ul className="list-disc pl-5 marker:text-[var(--accent)] text-sm">
+          <li><span className="hud-counter">W</span> – Move Forward</li>
+          <li><span className="hud-counter">S</span> – Move Backward</li>
+          <li><span className="hud-counter">A</span> – Rotate Left</li>
+          <li><span className="hud-counter">D</span> – Rotate Right</li>
+          <li><span className="hud-counter">SPACE</span> – Attack (Backstab)</li>
         </ul>
         
         {isMobile && (
-          <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900 dark:bg-opacity-30 border border-blue-200 dark:border-blue-800 rounded-md">
-            <h3 className="font-bold text-sm mb-1">Mobile Controls:</h3>
-            <p className="text-sm">Use the virtual joystick to move your character around and the attack button to backstab enemies. The joystick controls both movement and rotation.</p>
+          <div className="mt-4 p-3 rounded-md bg-[var(--background-alt)]/60 border border-[var(--panel-border)]">
+            <h3 className="font-pixel text-[10px] mb-2 tracking-wide text-[var(--gold)]">MOBILE</h3>
+            <p className="text-xs opacity-80">Use the virtual joystick to move; tap the attack sigil to strike. Movement also sets your facing.</p>
           </div>
-        )}<div className="mt-4 p-3 bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-200 dark:border-red-800 rounded-md">
-          <h3 className="font-bold text-sm mb-1">Backstabbing Mechanics:</h3>
-          <p className="text-sm">Get behind AI bots (outside their vision cone) and press <span className="font-mono bg-gray-200 dark:bg-zinc-700 px-2 py-0.5 rounded">Space</span> to defeat them with a backstab. When an AI is vulnerable, a red dashed circle will appear around it.</p>
+        )}
+        <div className="mt-4 p-3 rounded-md bg-[var(--danger-bg)] border border-[var(--panel-border)]">
+          <h3 className="font-pixel text-[10px] mb-2 tracking-wide text-[var(--accent-glow)]">BACKSTABBING</h3>
+            <p className="text-xs opacity-80 leading-relaxed">Circle behind sentries (outside their cone). When a target is vulnerable a crimson ring appears—strike to fell them instantly.</p>
         </div>
       </div>
     </div>

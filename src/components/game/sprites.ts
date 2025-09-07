@@ -1,6 +1,10 @@
 // Sprite rendering system for custom character graphics
 import { Player } from './types';
 
+// Animation speed constants (frames per second)
+const PLAYER_ANIMATION_FPS = 30; // snappier for human-controlled character
+const ENEMY_ANIMATION_FPS = 18;  // slower gait to match reduced movement speed
+
 // Sprite types
 export type SpriteType = 'character' | 'enemy';
 
@@ -339,7 +343,7 @@ export const createCharacterSprite = (config: SpriteConfig = {
   frameWidth: 32,
   frameHeight: 32,
   frameCount: 17, // 17 movement frames for walking animation
-  animationSpeed: 30, // Faster walking animation
+  animationSpeed: PLAYER_ANIMATION_FPS,
   useImageFile: true, // Use image file by default
   spriteSheetUrl: '/sprites/charactersprites.png', // Path to sprite sheet in public folder
   spriteType: 'character'
@@ -352,7 +356,7 @@ export const createEnemySprite = (config: SpriteConfig = {
   frameWidth: 32,
   frameHeight: 32,
   frameCount: 17, // 17 movement frames for walking animation
-  animationSpeed: 30, // Faster walking animation
+  animationSpeed: ENEMY_ANIMATION_FPS, // Deliberately slower for enemies
   useImageFile: true, // Use image file by default
   spriteSheetUrl: '/sprites/enemysprites.png', // Path to enemy sprite sheet in public folder
   spriteType: 'enemy'
@@ -369,7 +373,7 @@ export const createCharacterSpriteFromImage = (
     frameWidth: 32,
     frameHeight: 32,
     frameCount: 17, // 17 movement frames
-  animationSpeed: 30, // Faster walking animation
+  animationSpeed: PLAYER_ANIMATION_FPS,
     useImageFile: true,
     spriteSheetUrl,
     spriteType: 'character', // Default to character type
@@ -387,7 +391,7 @@ export const createEnemySpriteFromImage = (
     frameWidth: 32,
     frameHeight: 32,
     frameCount: 17, // 17 movement frames
-  animationSpeed: 30, // Faster walking animation
+  animationSpeed: ENEMY_ANIMATION_FPS,
     useImageFile: true,
     spriteSheetUrl,
     spriteType: 'enemy',

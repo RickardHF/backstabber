@@ -17,7 +17,7 @@ export default function ClientGameWrapper() {
     setGameStarted(true);
   };
   return (
-    <div className="w-full max-w-6xl mx-auto rounded-lg overflow-hidden shadow-lg p-2 md:p-4 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700">
+  <div className="w-full max-w-6xl mx-auto panel panel--ornate p-3 md:p-5">
       {!gameStarted ? (
         <StartScreen onGameStart={handleGameStart} />
       ) : (

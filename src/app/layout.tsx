@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, UnifrakturMaguntia } from "next/font/google";
+import { Geist, Geist_Mono, UnifrakturMaguntia, Press_Start_2P } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
@@ -18,6 +18,13 @@ const medievalDisplay = UnifrakturMaguntia({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-medieval-display",
+});
+
+// Retro pixel font (subtle usage for HUD / labels)
+const pixelFont = Press_Start_2P({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-pixel",
 });
 
 export const metadata: Metadata = {
@@ -83,7 +90,7 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${medievalDisplay.variable} antialiased bg-white dark:bg-zinc-900`}
+        className={`${geistSans.variable} ${geistMono.variable} ${medievalDisplay.variable} ${pixelFont.variable} antialiased bg-app text-app-foreground`}
       >
         {children}
       </body>

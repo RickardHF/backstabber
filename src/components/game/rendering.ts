@@ -330,8 +330,8 @@ const initializeSprites = async () => {
       enemySprite = createEnemySpriteFromImage('/sprites/enemysprites.png', {
         frameWidth: 32,
         frameHeight: 32,
-        frameCount: 17, // 17 movement frames
-        animationSpeed: 30, // Faster walking animation
+        frameCount: 17,
+        animationSpeed: 18, // slower enemy animation (kept in sync with sprites.ts constant)
         spriteType: 'enemy'
       });
     }
