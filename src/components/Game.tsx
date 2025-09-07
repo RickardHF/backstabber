@@ -61,11 +61,15 @@ const Game = () => {
   // Track grace period after restart
   const [graceActive, setGraceActive] = useState<boolean>(false);
   
-  // Death animation properties
+  // Death animation properties (now time-based with minimum duration)
   const [deathAnimation, setDeathAnimation] = useState<{
-    progress: number;
+    progress: number; // 0..1
     killedBy: Player | null;
     animationFrameId?: number;
+    startTime?: number;
+    durationMs?: number;
+    overlayDelayMs?: number;
+    overlayReady?: boolean;
   }>({
     progress: 0,
     killedBy: null
@@ -110,8 +114,7 @@ const Game = () => {
     if (player.isDead) {
       return;
     }
-    // Stop the game loop
-    setGameActive(false);
+  // Keep game loop running so we can render death animation; we'll just freeze logic updates
     
     // Mark player as dead
     setPlayer(prev => ({...prev, isDead: true}));
@@ -125,27 +128,31 @@ const Game = () => {
       console.log('Could not create audio object:', err);
     }
     
-    // Set up death animation
+    // Set up death animation: play frames quickly, delay overlay
     const startDeathAnimation = {
       progress: 0,
-      killedBy: killingAI
+      killedBy: killingAI,
+      startTime: performance.now(),
+  durationMs: 400, // animation lasts 400ms
+      overlayDelayMs: 2000, // wait at least 2s total before GAME OVER
+      overlayReady: false
     };
     
     setDeathAnimation(startDeathAnimation);
     
-    // Start death animation loop
+    // Start death animation loop (progress + overlay delay)
     const animatePlayerDeath = () => {
       setDeathAnimation(prev => {
-        if (prev.progress < 1) {
-          const newProgress = Math.min(1, prev.progress + 0.02);
+        if (!prev.startTime) return prev;
+        const now = performance.now();
+        const elapsed = now - prev.startTime;
+        const newProgress = prev.durationMs ? Math.min(1, elapsed / prev.durationMs) : 1;
+        const overlayReady = prev.overlayDelayMs ? elapsed >= prev.overlayDelayMs : newProgress >= 1;
+        if (!overlayReady) {
           const animationId = requestAnimationFrame(animatePlayerDeath);
-          return {
-            ...prev,
-            progress: newProgress,
-            animationFrameId: animationId
-          };
+          return { ...prev, progress: newProgress, overlayReady, animationFrameId: animationId };
         }
-        return prev;
+        return { ...prev, progress: newProgress, overlayReady };
       });
     };
     
@@ -311,7 +318,7 @@ const Game = () => {
         // Prevent default space bar behavior (page scrolling)
         e.preventDefault();
         
-        if (player.isDead && deathAnimation.progress >= 0.95) {
+  if (player.isDead && deathAnimation.overlayReady) {
           // If player is dead and animation is complete, restart the game
           resetGame();
         } else if (!player.isDead) {
@@ -362,37 +369,37 @@ const Game = () => {
       // Calculate time passed since last frame for AI Manager
       
       // Get all active AI players
-      const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];    // Update player position with collision detection
-      // Pass all AI players for collision detection
-    setPlayer(prevPlayer => {        const result = updatePlayer(
-          prevPlayer, 
-          keysPressed, 
-          canvasRef.current, 
-          boxes, 
-          isMobile ? joystickInput : undefined,
-      deltaTimeSeconds,
-          ...aiPlayers
-        );
-        
-        // Check if player collided with an AI bot, isn't already dead and not in grace period
-        if (result.collidedWithAI && result.collidingAI && !prevPlayer.isDead && !graceActive) {
-          // Check if the AI vision exists and if player is NOT behind the AI
-          const aiVision = aiManagerRef.current?.getAIVision(result.collidingAI.id);
-          const isPlayerBehind = aiVision ? isPlayerBehindAI(prevPlayer, result.collidingAI, aiVision) : false;
-          
-          // Only kill the player if they collided with an AI from the front (within AI's vision cone)
-          if (!isPlayerBehind) {
-            // AI bot kills the player
-            setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
-            return { ...result.updatedPlayer, isDead: true };
+      const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+
+      if (!player.isDead) {
+        // Update player position with collision detection only if alive
+        setPlayer(prevPlayer => {
+          if (prevPlayer.isDead) return prevPlayer; // freeze
+          const result = updatePlayer(
+            prevPlayer,
+            keysPressed,
+            canvasRef.current,
+            boxes,
+            isMobile ? joystickInput : undefined,
+            deltaTimeSeconds,
+            ...aiPlayers
+          );
+
+          // Check if player collided with an AI bot, isn't already dead and not in grace period
+          if (result.collidedWithAI && result.collidingAI && !prevPlayer.isDead && !graceActive) {
+            const aiVision = aiManagerRef.current?.getAIVision(result.collidingAI.id);
+            const isPlayerBehind = aiVision ? isPlayerBehindAI(prevPlayer, result.collidingAI, aiVision) : false;
+            if (!isPlayerBehind) {
+              setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
+              return { ...result.updatedPlayer, isDead: true };
+            }
           }
-        }
-        
-        return result.updatedPlayer;
-      });
-      
-      // Update all AI players via the manager if game is still active
-      if (aiManagerRef.current && gameActive) {
+          return result.updatedPlayer;
+        });
+      }
+
+      // Update AI only if player alive
+      if (aiManagerRef.current && gameActive && !player.isDead) {
         // Use performance.now() for consistent timing with the AI Manager
   const currentTime = now; // reuse timestamp from RAF
         aiManagerRef.current.updateAllAIPlayers(
@@ -407,8 +414,8 @@ const Game = () => {
       renderGame();
       
       // Continue the game loop if game is active
-      if (gameActive && !player.isDead) {
-  animationFrameId = requestAnimationFrame(gameLoop);
+      if (gameActive && (!player.isDead || (player.isDead && deathAnimation.progress < 1))) {
+        animationFrameId = requestAnimationFrame(gameLoop);
       }
     };
     
@@ -416,7 +423,7 @@ const Game = () => {
       return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile]);
+  }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile, deathAnimation.progress, graceActive]);
     // Render the game
   const renderGame = () => {
     // Prepare per-frame timing for sprite animations
@@ -494,7 +501,7 @@ const Game = () => {
       
       // For visual effect only - draw a darker overlay when the animation is progressing
       // The actual UI elements are handled by the React overlay
-      if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 0.95) {
+  if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 1) {
         const overlayOpacity = (deathAnimation.progress - 0.5) * 2 * 0.5; // 0 to 0.5 opacity
         offCtx.save();
         offCtx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
@@ -702,7 +709,7 @@ const Game = () => {
             Shield Active
           </div>
         )}
-        {player.isDead && deathAnimation.progress >= 0.95 && (
+  {player.isDead && deathAnimation.overlayReady && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-70">
             <h2 className="text-4xl font-bold text-red-500 mb-2">GAME OVER</h2>
             <p className="text-xl text-white mb-6">Killed by AI Bot</p>

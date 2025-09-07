@@ -456,69 +456,77 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
 
 // Helper function to draw player death animation
 export const drawPlayerDeath = (
-  ctx: CanvasRenderingContext2D, 
-  player: Player, 
-  killerAI: Player | null, 
+  ctx: CanvasRenderingContext2D,
+  player: Player,
+  killerAI: Player | null,
   progress: number
 ) => {
-  // Save current context
   ctx.save();
-  
-  // Use progress to create animation effects
-  const deathSize = player.size * (1 + progress * 0.5); // Expand slightly as death progresses
-  const opacity = Math.max(0, 1 - progress); // Fade out as progress increases
-  
-  // Draw expanding red circle (blood splatter effect)
+
+  // Attempt to use the loaded character sprite sheet for death frames (4th column, 6 rows)
+  // Fallback to simple circle fade if sprite not ready
+  const sprite = (characterSprite); // reuse existing loaded character sprite
+  const deathFrameCount = 6; // 6 rows in the 4th column
+
+  if (sprite && (sprite as any).getImage) {
+    const img: HTMLImageElement | null = (sprite as any).getImage();
+    const cfg = (sprite as any).getConfig?.();
+    if (img && cfg) {
+      const frameWidth = cfg.frameWidth;
+      const frameHeight = cfg.frameHeight;
+      const columnIndex = 3; // 4th column (0-indexed)
+      // Determine frame based on progress
+      const rawFrame = Math.min(deathFrameCount - 1, Math.floor(progress * deathFrameCount));
+      const sx = frameWidth * columnIndex;
+      const sy = frameHeight * rawFrame; // Each death frame is a row
+      const destSize = player.size * 2.5;
+      const destX = player.x - destSize / 2;
+      const destY = player.y - destSize / 2;
+
+      // Draw underlying faint red expansion
+      const ringOpacity = 0.4 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, destSize * 0.8 + progress * destSize * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,0,0,${ringOpacity})`;
+      ctx.fill();
+
+      ctx.drawImage(img, sx, sy, frameWidth, frameHeight, destX, destY, destSize, destSize);
+
+      // Fade out towards end
+      if (progress > 0.7) {
+        ctx.globalAlpha = (progress - 0.7) / 0.3; // 0 to 1 last 30%
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255,0,0,0.85)';
+        ctx.fillText('DEAD', player.x, player.y + destSize * 0.6);
+        ctx.globalAlpha = 1;
+      }
+
+      // Killer link early in animation
+      if (killerAI && progress < 0.5) {
+        ctx.strokeStyle = `rgba(255,0,0,${1 - progress * 2})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y);
+        ctx.lineTo(killerAI.x, killerAI.y);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+      return;
+    }
+  }
+
+  // Fallback simple effect if sprite not available
+  const deathSize = player.size * (1 + progress * 0.5);
+  const opacity = Math.max(0, 1 - progress);
   ctx.beginPath();
   ctx.arc(player.x, player.y, deathSize * 2 * progress, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255, 0, 0, ${opacity * 0.5})`;
+  ctx.fillStyle = `rgba(255,0,0,${opacity * 0.5})`;
   ctx.fill();
-  
-  // Draw the player fading out
   ctx.beginPath();
   ctx.arc(player.x, player.y, deathSize, 0, Math.PI * 2);
-  
-  // Get player color and fade it out
-  const colors = directionColors;
-  const baseColor = colors[player.direction];
-  
-  // Parse the RGB values from the color string
-  const rgbMatch = baseColor.match(/\d+/g);
-  if (rgbMatch && rgbMatch.length >= 3) {
-    const [r, g, b] = rgbMatch.map(Number);
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  } else {
-    // Fallback if color parsing fails
-    ctx.fillStyle = `rgba(100, 100, 100, ${opacity})`;
-  }
-  
+  ctx.fillStyle = `rgba(200,200,200,${opacity})`;
   ctx.fill();
-  
-  // Draw the border
-  ctx.strokeStyle = `rgba(0, 0, 0, ${opacity})`;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  
-  // If close to completion of animation, add text
-  if (progress > 0.5) {
-    const textOpacity = (progress - 0.5) * 2; // Fade in text during second half
-    ctx.font = 'bold 24px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = `rgba(255, 0, 0, ${textOpacity})`;
-    ctx.fillText('DEAD', player.x, player.y);
-  }
-  
-  // Draw a line connecting the player to the killer AI if available
-  if (killerAI && progress < 0.8) {
-    const lineOpacity = 1 - progress / 0.8;
-    ctx.beginPath();
-    ctx.moveTo(player.x, player.y);
-    ctx.lineTo(killerAI.x, killerAI.y);
-    ctx.strokeStyle = `rgba(255, 0, 0, ${lineOpacity})`;
-    ctx.lineWidth = 2 * (1 - progress);
-    ctx.stroke();
-  }
-  
-  // Restore context
   ctx.restore();
 };

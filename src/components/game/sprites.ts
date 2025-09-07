@@ -40,6 +40,10 @@ export class CharacterSprite {
       this.createCharacterSprite();
     }
   }
+
+  // Public accessors for rendering helpers (e.g., death animation)
+  public getImage(): HTMLImageElement | null { return this.spriteImage; }
+  public getConfig(): SpriteConfig { return this.config; }
   // Load sprite from image file
   private loadImageSprite(url: string) {
     this.spriteImage = new Image();
