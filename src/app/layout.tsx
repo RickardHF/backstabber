@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     description: "Backstabber – a 2D stealthy arena with AI opponents.",
     images: [
       {
-        url: "/dagger.png",
+        url: "dagger.png",
         width: 256,
         height: 256,
         alt: "Backstabber dagger",
@@ -39,10 +39,10 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Backstabber",
     description: "Backstabber – a 2D stealthy arena with AI opponents.",
-    images: ["/dagger.png"],
+    images: ["dagger.png"],
   },
   icons: {
-    icon: "/dagger.png",
+    icon: "dagger.png",
   },
 };
 
