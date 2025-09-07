@@ -327,14 +327,7 @@ export class CharacterSprite {
     // Restore rotation context
     ctx.restore();
     
-    // Draw player label (after restoring rotation so text stays upright)
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.strokeText(isAI ? 'AI' : 'P1', player.x, player.y + destSize / 2 + 15);
-    ctx.fillText(isAI ? 'AI' : 'P1', player.x, player.y + destSize / 2 + 15);
+  // Player labels removed per request
   }
 }
 

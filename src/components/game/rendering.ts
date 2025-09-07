@@ -385,41 +385,8 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
           return; // done drawing dead enemy
         }
       }
-      sprite.render(ctx, p, deltaTime, p.isAI || false);
-      
-      // Draw direction indicator line if moving
-      if (p.direction !== 'none') {
-        ctx.beginPath();
-        
-        // Starting point is the center of the player
-        const indicatorLength = p.size + 15;
-        
-        // Use rotation property to determine the direction of the indicator
-        const rotation = p.rotation || 0;
-        const endX = p.x + Math.cos(rotation) * indicatorLength;
-        const endY = p.y + Math.sin(rotation) * indicatorLength;
-        
-        // Draw main line indicator
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(endX, endY);
-        
-        // Add arrowhead
-        const arrowSize = 6;
-        const angle = Math.atan2(endY - p.y, endX - p.x);
-        ctx.lineTo(
-          endX - arrowSize * Math.cos(angle - Math.PI / 6),
-          endY - arrowSize * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(
-          endX - arrowSize * Math.cos(angle + Math.PI / 6),
-          endY - arrowSize * Math.sin(angle + Math.PI / 6)
-        );
-        
-        ctx.strokeStyle = p.isAI ? '#FF4444' : '#4444FF';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
+  sprite.render(ctx, p, deltaTime, p.isAI || false);
+  // Direction arrow intentionally removed
       
       return; // Skip the old circle rendering
     }
@@ -439,44 +406,7 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
   ctx.lineWidth = 2;
   ctx.stroke();
   
-  // Add label to distinguish between players
-  ctx.font = '12px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(p.isAI ? 'AI' : 'P1', p.x, p.y + 4);
-  
-  // Draw direction indicator using rotation property
-  if (p.direction !== 'none') {
-    ctx.beginPath();
-    
-    // Starting point is the center of the player
-    const indicatorLength = p.size + 10;
-    
-    // Use rotation property to determine the direction of the indicator
-    const rotation = p.rotation || 0;
-    const endX = p.x + Math.cos(rotation) * indicatorLength;
-    const endY = p.y + Math.sin(rotation) * indicatorLength;
-    
-    // Draw main line indicator
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(endX, endY);
-    
-    // Add arrowhead
-    const arrowSize = 5;
-    const angle = Math.atan2(endY - p.y, endX - p.x);
-    ctx.lineTo(
-      endX - arrowSize * Math.cos(angle - Math.PI / 6),
-      endY - arrowSize * Math.sin(angle - Math.PI / 6)
-    );
-    ctx.moveTo(endX, endY);
-    ctx.lineTo(
-      endX - arrowSize * Math.cos(angle + Math.PI / 6),
-      endY - arrowSize * Math.sin(angle + Math.PI / 6)
-    );
-      ctx.strokeStyle = p.isAI ? '#333333' : '#000000';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  }
+  // Player label and direction arrow removed per request
 };
 
 // Helper function to draw player death animation
