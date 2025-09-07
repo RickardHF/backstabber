@@ -7,7 +7,7 @@ export default function Home() {
       <main className="flex flex-col gap-4 md:gap-8 items-center w-full max-w-screen-xl">
         <div className="flex items-center justify-center gap-4 md:gap-6">
           <Image
-            src="/dagger.png"
+            src="dagger.png"
             alt="Backstabber dagger"
             width={126}
             height={126}
