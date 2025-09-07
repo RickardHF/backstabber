@@ -50,14 +50,8 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
   }, [size, isFullscreen]);
   
   const maxDistance = responsiveSize / 2 - 30; // 30px is half the knob size for larger knob
-    const handleStart = useCallback((clientX: number, clientY: number, touchIdentifier?: number) => {
-    setIsDragging(true);
-    if (touchIdentifier !== undefined) {
-      setTouchId(touchIdentifier);
-    }
-    handleMove(clientX, clientY);
-  }, [handleMove]);
-  
+
+  // Movement handler first so it exists before start handler invokes it
   const handleMove = useCallback((clientX: number, clientY: number) => {
     if (!joystickRef.current || !isDragging) return;
     
@@ -85,12 +79,21 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
     
     onMove({ x: normalizedX, y: normalizedY });
   }, [isDragging, onMove, maxDistance]);
-    const handleEnd = useCallback(() => {
+
+  const handleStart = useCallback((clientX: number, clientY: number, touchIdentifier?: number) => {
+    setIsDragging(true);
+    if (touchIdentifier !== undefined) {
+      setTouchId(touchIdentifier);
+    }
+    handleMove(clientX, clientY);
+  }, [handleMove]);
+
+  const handleEnd = useCallback(() => {
     setIsDragging(false);
     setTouchId(null);
     setPosition({ x: 0, y: 0 });
     onMove({ x: 0, y: 0 });
-    }, [onMove]);
+  }, [onMove]);
   
   // Mouse events
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -154,7 +157,8 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
   
   return (
     <div
-      ref={joystickRef}      className="relative bg-gray-800 bg-opacity-50 border-2 border-gray-600 rounded-full select-none mobile-joystick"
+      ref={joystickRef}
+      className="relative bg-gray-800 bg-opacity-50 border-2 border-gray-600 rounded-full select-none mobile-joystick"
       style={{
         width: responsiveSize,
         height: responsiveSize,
@@ -165,7 +169,8 @@ const Joystick: React.FC<JoystickProps> = ({ onMove, size, isFullscreen = false 
     >
       <div
         ref={knobRef}
-        className="absolute bg-white border-2 border-gray-400 rounded-full shadow-lg transition-transform"        style={{
+        className="absolute bg-white border-2 border-gray-400 rounded-full shadow-lg transition-transform"
+        style={{
           width: 60,
           height: 60,
           left: '50%',
@@ -186,7 +191,7 @@ const MobileControls: React.FC<MobileControlsProps> = ({
   isPlayerDead,
   isFullscreen,
 }) => {
-    if (!isVisible) return null;
+  if (!isVisible) return null;
   return (
     <div className={`fixed left-0 right-0 flex justify-between items-end pointer-events-none z-50 safe-area-inset mobile-controls ${
       isFullscreen 
@@ -194,7 +199,8 @@ const MobileControls: React.FC<MobileControlsProps> = ({
         : 'bottom-8 md:bottom-12 px-8 md:px-12'
     }`}>
       {/* Joystick */}
-      <div className="pointer-events-auto" style={{ touchAction: 'none' }}>        <Joystick 
+      <div className="pointer-events-auto" style={{ touchAction: 'none' }}>
+        <Joystick 
           onMove={onMovement} 
           size={100}
           isFullscreen={isFullscreen}
@@ -203,7 +209,8 @@ const MobileControls: React.FC<MobileControlsProps> = ({
           <div className="text-center mt-1 md:mt-2 text-white text-xs md:text-sm font-medium drop-shadow-lg">
             Move
           </div>
-        )}      </div>
+        )}
+      </div>
       
       {/* Attack Button */}
       <div className="pointer-events-auto" style={{ touchAction: 'manipulation' }}>
@@ -213,7 +220,8 @@ const MobileControls: React.FC<MobileControlsProps> = ({
             if (!attackCooldown && !isPlayerDead) {
               onAttack();
             }
-          }}          disabled={attackCooldown || isPlayerDead}
+          }}
+          disabled={attackCooldown || isPlayerDead}
           className={`
             ${isFullscreen 
               ? 'w-20 h-20 md:w-24 md:h-24 text-xl md:text-2xl' 
@@ -224,7 +232,8 @@ const MobileControls: React.FC<MobileControlsProps> = ({
               : 'bg-red-600 border-red-400 hover:bg-red-700 active:bg-red-800 active:scale-95'
             }
           `}
-          style={{ touchAction: 'manipulation' }}        >
+          style={{ touchAction: 'manipulation' }}
+        >
           ⚔️
         </button>
         {!isFullscreen && (
