@@ -24,8 +24,17 @@
   --warning: #d6a548;
   --font-display: var(--font-medieval-display);
   --font-pixel: var(--font-pixel);
-  --lore-duration: 18s; /* duration of lore scroll */
+  --lore-duration: 65s; /* duration of lore scroll (slowed from 18s) */
   --lore-delay: 0.6s; /* slight delay before scroll begins */
+  /* End position (in % of element height) for lore scroll animation.
+    Originally -120% (travel path = 220%). That made the effective speed ~2.2x faster
+    than authors likely intent (feels like it ends in ~half the configured time).
+    With -20% the travel path is now 120% (from 100% -> -20%), much closer to 1x.
+    Tweak this if you want slower/faster perceived scroll without touching duration. */
+  --lore-end: -11%;
+  /* Spacing tokens (mirroring Tailwind p-6 / p-10) */
+  --panel-pad-sm: 1.5rem; /* 24px */
+  --panel-pad-lg: 2.5rem; /* 40px */
 }
 
 /* (Removed experimental @theme directive – using raw CSS variables instead) */
@@ -331,10 +340,18 @@ body {
 }
 
 /* Lore scroll animation */
-.lore-scroll { position: absolute; bottom: 0; width: 100%; max-width: 100%; animation: none; will-change: transform; transform: translateY(100%); }
+.lore-scroll { position: absolute; bottom: 0; left: var(--panel-pad-sm); right: var(--panel-pad-sm); width: auto; max-width: none; animation: none; will-change: transform; transform: translateY(100%); }
+.lore-scroll .max-w-prose { max-width: 70ch; }
+@media (min-width: 768px) {
+  .lore-scroll { left: var(--panel-pad-lg); right: var(--panel-pad-lg); }
+}
 .lore-scroll-start { animation: loreRoll var(--lore-duration) linear var(--lore-delay) forwards; }
-@keyframes loreRoll { from { transform: translateY(100%); } to { transform: translateY(-120%); } }
+@keyframes loreRoll { from { transform: translateY(100%); } to { transform: translateY(var(--lore-end)); } }
 
 @media (prefers-reduced-motion: reduce) {
   .lore-scroll-start { animation-duration: 0.01ms; animation-delay: 0s; }
 }
+
+/* Lore content fine-tuning */
+.lore-scroll p { text-indent: 0; }
+.lore-scroll .max-w-prose { margin-left: auto; margin-right: auto; }
