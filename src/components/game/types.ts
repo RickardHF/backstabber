@@ -7,12 +7,18 @@ export interface GameObject {
   x: number;
   y: number;
   direction: Direction;
+  /**
+   * Movement speed in pixels per second (frame-rate independent)
+   */
   speed: number;
   size: number;
   pulse: number;
-  // New properties for rotation-based movement
+  // Rotation-based movement
   rotation: number; // Rotation in radians
-  rotationSpeed: number; // Rotation speed in radians
+  /**
+   * Rotation speed in radians per second (frame-rate independent)
+   */
+  rotationSpeed: number;
 }
 
 // Player interface

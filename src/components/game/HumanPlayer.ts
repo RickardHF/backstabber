@@ -56,6 +56,7 @@ export const updatePlayer = (
   canvas: HTMLCanvasElement | null,
   boxes: Box[] = [],
   joystickInput: { x: number; y: number } | null | undefined = undefined,
+  deltaTimeSeconds: number = 1 / 60, // default to ~16ms frame if not provided
   ...aiPlayers: Player[]
 ): PlayerUpdateResult => {
   // If player is already dead, don't process movement
@@ -69,7 +70,9 @@ export const updatePlayer = (
   let newY = player.y;
   let newDirection: Direction = player.direction;
   let newRotation = player.rotation || 0;
-  const rotationSpeed = player.rotationSpeed || 0.05; // Default rotation speed if not set
+  const rotationSpeed = player.rotationSpeed || 0.05; // radians per second
+  const rotationDelta = rotationSpeed * deltaTimeSeconds; // frame scaled rotation
+  const moveDeltaBase = player.speed * deltaTimeSeconds; // frame scaled movement (pixels this frame)
 
   // Handle joystick input if provided
   if (joystickInput && (Math.abs(joystickInput.x) > 0.1 || Math.abs(joystickInput.y) > 0.1)) {
@@ -85,7 +88,7 @@ export const updatePlayer = (
     
     // Apply rotation with a smoothing factor
     const rotationSmoothingFactor = 0.2;
-    newRotation += rotationDiff * rotationSmoothingFactor;
+  newRotation += rotationDiff * rotationSmoothingFactor; // already scaled smoothing
     
     // Normalize rotation to [0, 2π]
     if (newRotation < 0) newRotation += Math.PI * 2;
@@ -93,8 +96,8 @@ export const updatePlayer = (
     
     // Move in the direction of the joystick
     const moveSpeed = Math.sqrt(joystickInput.x * joystickInput.x + joystickInput.y * joystickInput.y);
-    newX += Math.cos(targetRotation) * player.speed * moveSpeed;
-    newY += Math.sin(targetRotation) * player.speed * moveSpeed;
+  newX += Math.cos(targetRotation) * moveDeltaBase * moveSpeed;
+  newY += Math.sin(targetRotation) * moveDeltaBase * moveSpeed;
     
     // Update direction based on rotation angle
     if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
@@ -112,7 +115,7 @@ export const updatePlayer = (
   if (!joystickInput || (Math.abs(joystickInput.x) <= 0.1 && Math.abs(joystickInput.y) <= 0.1)) {
     // Rotate left with 'a' key
     if (keysPressed['a']) {
-      newRotation -= rotationSpeed;
+  newRotation -= rotationDelta;
       if (newRotation < 0) newRotation += Math.PI * 2;
       
       // Update direction based on rotation angle
@@ -129,7 +132,7 @@ export const updatePlayer = (
     
     // Rotate right with 'd' key
     if (keysPressed['d']) {
-      newRotation += rotationSpeed;
+  newRotation += rotationDelta;
       if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
       
       // Update direction based on rotation angle
@@ -146,14 +149,14 @@ export const updatePlayer = (
     
     // Move forward with 'w' key
     if (keysPressed['w']) {
-      newX += Math.cos(newRotation) * player.speed;
-      newY += Math.sin(newRotation) * player.speed;
+  newX += Math.cos(newRotation) * moveDeltaBase;
+  newY += Math.sin(newRotation) * moveDeltaBase;
     }
     
     // Move backward with 's' key
     if (keysPressed['s']) {
-      newX -= Math.cos(newRotation) * player.speed;
-      newY -= Math.sin(newRotation) * player.speed;
+  newX -= Math.cos(newRotation) * moveDeltaBase;
+  newY -= Math.sin(newRotation) * moveDeltaBase;
     }
   }
   // Keep player within canvas bounds

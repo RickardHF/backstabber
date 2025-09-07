@@ -21,11 +21,13 @@ const Game = () => {
     x: userSpawn.x,
     y: userSpawn.y,
     direction: 'right',
-    speed: 3,
+    // Speed expressed as pixels per second (was ~3px per frame @60fps -> 180px/s)
+    speed: 180,
     size: 20,
     pulse: 0,
     rotation: 0, // Initially facing right (0 radians)
-    rotationSpeed: 0.1, // Speed of rotation when turning
+    // Rotation speed in radians per second (0.1 rad/frame * 60fps = 6 rad/s)
+    rotationSpeed: 6,
     isDead: false,
     isAttacking: false, // Initialize attacking state
     vision: {
@@ -203,7 +205,9 @@ const Game = () => {
       x: userSpawn.x,
       y: userSpawn.y,
       direction: 'right',
-      rotation: 0,
+  speed: 180, // pixels per second
+  rotation: 0,
+  rotationSpeed: 6, // radians per second
       pulse: 0,
       isDead: false,
       isAttacking: false, // Reset attacking state
@@ -345,19 +349,28 @@ const Game = () => {
     if (!gameActive) return;
     
     let animationFrameId: number;
+    let lastTime: number | null = null;
     
-    const gameLoop = () => {
+    const gameLoop = (time?: number) => {
+      const now = time ?? performance.now();
+      let deltaTimeSeconds = 1 / 60;
+      if (lastTime !== null) {
+        deltaTimeSeconds = (now - lastTime) / 1000;
+        if (deltaTimeSeconds > 0.25) deltaTimeSeconds = 0.25; // safety clamp
+      }
+      lastTime = now;
       // Calculate time passed since last frame for AI Manager
       
       // Get all active AI players
       const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];    // Update player position with collision detection
       // Pass all AI players for collision detection
-      setPlayer(prevPlayer => {        const result = updatePlayer(
+    setPlayer(prevPlayer => {        const result = updatePlayer(
           prevPlayer, 
           keysPressed, 
           canvasRef.current, 
           boxes, 
           isMobile ? joystickInput : undefined,
+      deltaTimeSeconds,
           ...aiPlayers
         );
         
@@ -381,7 +394,7 @@ const Game = () => {
       // Update all AI players via the manager if game is still active
       if (aiManagerRef.current && gameActive) {
         // Use performance.now() for consistent timing with the AI Manager
-        const currentTime = performance.now();
+  const currentTime = now; // reuse timestamp from RAF
         aiManagerRef.current.updateAllAIPlayers(
           player,
           canvasRef.current,
@@ -395,11 +408,11 @@ const Game = () => {
       
       // Continue the game loop if game is active
       if (gameActive && !player.isDead) {
-        animationFrameId = requestAnimationFrame(gameLoop);
+  animationFrameId = requestAnimationFrame(gameLoop);
       }
     };
     
-    animationFrameId = requestAnimationFrame(gameLoop);
+  animationFrameId = requestAnimationFrame(gameLoop);
       return () => {
       cancelAnimationFrame(animationFrameId);
     };

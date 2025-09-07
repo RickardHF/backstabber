@@ -124,7 +124,8 @@ export const updateAiPlayer = (
   aiVision: AIVision,
   canvas: HTMLCanvasElement | null,
   boxes: Box[] = [],
-  otherAIPlayers: Player[] = []
+  otherAIPlayers: Player[] = [],
+  deltaTimeSeconds: number = 1 / 60
 ): { updatedAiPlayer: Player, updatedAiVision: AIVision } => {
   // First, check if AI can see the player, passing in the boxes to check for line-of-sight
   const updatedAiVision = checkAiVision(aiPlayer, player, aiVision, boxes, otherAIPlayers.length > 0 ? otherAIPlayers[0] : undefined);
@@ -133,7 +134,9 @@ export const updateAiPlayer = (
   let newY = aiPlayer.y;
   let newDirection = aiPlayer.direction;
   let newRotation = aiPlayer.rotation || 0;
-  const rotationSpeed = aiPlayer.rotationSpeed || 0.05;
+  const rotationSpeed = aiPlayer.rotationSpeed || 0.05; // radians per second
+  const rotationDelta = rotationSpeed * deltaTimeSeconds;
+  const moveDeltaBase = aiPlayer.speed * deltaTimeSeconds; // pixels this frame
   
   if (updatedAiVision.canSeePlayer) {
     // If AI can see player, calculate the angle to the player
@@ -182,9 +185,9 @@ export const updateAiPlayer = (
     // Gradually rotate towards the player
     if (Math.abs(rotationDiff) > 0.1) {
       if (rotationDiff > 0) {
-        newRotation += rotationSpeed;
+        newRotation += rotationDelta;
       } else {
-        newRotation -= rotationSpeed;
+        newRotation -= rotationDelta;
       }
     } else {
       newRotation = angleToPlayer; // Snap to exact angle when close
@@ -206,13 +209,13 @@ export const updateAiPlayer = (
     }
     
     // Move forward in the direction we're facing
-    newX += Math.cos(newRotation) * aiPlayer.speed;
-    newY += Math.sin(newRotation) * aiPlayer.speed;
+  newX += Math.cos(newRotation) * moveDeltaBase;
+  newY += Math.sin(newRotation) * moveDeltaBase;
   } else {
     // If AI can't see player, keep moving in current direction
     // and occasionally make random rotations in the AI movement interval
-    newX += Math.cos(newRotation) * aiPlayer.speed;
-    newY += Math.sin(newRotation) * aiPlayer.speed;
+  newX += Math.cos(newRotation) * moveDeltaBase;
+  newY += Math.sin(newRotation) * moveDeltaBase;
   }
     // Keep AI player within canvas bounds and change rotation if hitting a wall
   if (canvas) {

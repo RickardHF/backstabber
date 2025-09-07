@@ -11,6 +11,7 @@ export class AIManager {
   private aiVisions: AIVision[] = [];
   private config: AIManagerConfig;
   private nextSpawnTime: number = 0;
+  private lastUpdateTime: number | null = null;
   
   constructor(config: AIManagerConfig) {
     this.config = config;
@@ -26,6 +27,14 @@ export class AIManager {
     boxes: Box[], 
     currentTime: number
   ): void {
+    // Calculate delta time (in seconds) since last update
+    let deltaTimeSeconds = 1 / 60; // fallback
+    if (this.lastUpdateTime !== null) {
+      deltaTimeSeconds = (currentTime - this.lastUpdateTime) / 1000;
+      // Clamp to avoid huge jumps when tab was inactive
+      if (deltaTimeSeconds > 0.25) deltaTimeSeconds = 0.25; // max 250ms
+    }
+    this.lastUpdateTime = currentTime;
     // Check if we need to spawn a new AI player
     if (this.config.enabled && 
         this.aiPlayers.length < this.config.maxBots && 
@@ -50,7 +59,8 @@ export class AIManager {
         canvas,
         boxes,
         // Pass other AI players as obstacles for collision detection
-        this.aiPlayers.filter(p => p.id !== aiPlayer.id && !p.isDead)
+        this.aiPlayers.filter(p => p.id !== aiPlayer.id && !p.isDead),
+        deltaTimeSeconds
       );
       
       // Update the AI player and vision
@@ -78,13 +88,15 @@ export class AIManager {
       x: spawnPoint.x,
       y: spawnPoint.y,
       direction: 'right',
-      speed: 0.5, // Slower than human player
+  // Was 0.5px per frame at 60fps => 30 px/s
+  speed: 30, // Slower than human player
       size: 20,
       pulse: Math.PI * Math.random(), // Random starting phase
       isAI: true,
       isDead: false,
       rotation: Math.random() * Math.PI * 2, // Random starting rotation
-      rotationSpeed: 0.08 // Slightly slower rotation than the player
+  // Was 0.08 rad per frame at 60fps => 4.8 rad/s
+  rotationSpeed: 4.8 // Slightly slower rotation than the player
     };
     
     // Validate the spawn position is clear
