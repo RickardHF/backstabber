@@ -53,6 +53,24 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Map System (Tiled TMJ)
+
+The arena layout can be authored in the free Tiled editor (`.tmj` JSON). Runtime loads `public/maps/arena.tmj`.
+
+Layers:
+1. Walls (object layer): rectangle objects with `type = wall` become collision boxes.
+2. Spawns (object layer): point objects with `type = spawn` and property `spawnType` = `user` or `ai`.
+
+Edit workflow:
+1. Open `public/maps/arena.tmj` in Tiled.
+2. Adjust wall rectangles (map size 20x15 tiles @ 40px -> 800x600 px).
+3. Move / add spawn points (set property `spawnType`).
+4. Save and refresh the browser.
+
+If loading the TMJ fails the game falls back to the hardcoded layout in `MapLayout.ts`.
+
+Add new maps by placing another `.tmj` in `public/maps/` and calling `loadMapFromTiled('/maps/yourmap.tmj')` early (e.g., in a custom init hook).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

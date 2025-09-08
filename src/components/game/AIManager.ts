@@ -1,7 +1,7 @@
 import { Player, AIVision, AIManagerConfig, Box } from './types';
 import { updateAiPlayer } from './AIPlayer';
 import { checkPlayerBoxCollision, checkPlayerCollision } from './collision';
-import { getRandomAISpawnPoint, isValidSpawnPosition as checkMapSpawnPosition } from './MapLayout';
+import { getRandomAISpawnPoint, isValidSpawnPosition as checkMapSpawnPosition, MAP_CONFIG } from './MapLayout';
 
 /**
  * Manages multiple AI players, handling spawning, updating, and despawning
@@ -39,8 +39,9 @@ export class AIManager {
     }
     this.lastUpdateTime = currentTime;
     // Check if we need to spawn a new AI player
-    if (this.config.enabled && 
-        this.aiPlayers.length < this.config.maxBots && 
+  const effectiveMax = MAP_CONFIG.maxBots ?? this.config.maxBots;
+  if (this.config.enabled && 
+    this.aiPlayers.length < effectiveMax && 
         currentTime >= this.nextSpawnTime) {
       console.log("Spawning AI player at time:", currentTime);
       this.spawnAIPlayer(player, boxes);
@@ -81,7 +82,8 @@ export class AIManager {
   private spawnAIPlayer(humanPlayer: Player, boxes: Box[]
   ): void {
     // Don't spawn if we're at max capacity
-    if (this.aiPlayers.length >= this.config.maxBots) return;
+  const effectiveMax = MAP_CONFIG.maxBots ?? this.config.maxBots;
+  if (this.aiPlayers.length >= effectiveMax) return;
     
     // Get a random spawn point from the map layout
     const spawnPoint = getRandomAISpawnPoint();
@@ -89,8 +91,8 @@ export class AIManager {
     // Create a new AI player with spawn point location
     const newAIPlayer: Player = {
       id: `ai-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      x: spawnPoint.x,
-      y: spawnPoint.y,
+  x: spawnPoint.x,
+  y: spawnPoint.y,
       direction: 'right',
   // Was 0.5px per frame at 60fps => 30 px/s
   speed: 30, // Slower than human player
@@ -103,6 +105,13 @@ export class AIManager {
   rotationSpeed: 4.8 // Slightly slower rotation than the player
     };
     
+    // Clamp to world bounds if map larger than viewport
+  const worldW = MAP_CONFIG.width;
+  const worldH = MAP_CONFIG.height;
+    if (newAIPlayer.x < 0) newAIPlayer.x = 0;
+    if (newAIPlayer.y < 0) newAIPlayer.y = 0;
+    if (newAIPlayer.x > worldW) newAIPlayer.x = worldW;
+    if (newAIPlayer.y > worldH) newAIPlayer.y = worldH;
     // Validate the spawn position is clear
     if (!checkMapSpawnPosition(newAIPlayer.x, newAIPlayer.y, newAIPlayer.size, boxes)) {
       console.warn("AI spawn point is blocked by walls, trying alternative positions");
@@ -116,8 +125,12 @@ export class AIManager {
         const offsetX = (Math.random() - 0.5) * 100; // Random offset within 100 pixels
         const offsetY = (Math.random() - 0.5) * 100;
         
-        const testX = spawnPoint.x + offsetX;
-        const testY = spawnPoint.y + offsetY;
+        let testX = spawnPoint.x + offsetX;
+        let testY = spawnPoint.y + offsetY;
+        if (testX < 0) testX = 0;
+        if (testY < 0) testY = 0;
+        if (testX > worldW) testX = worldW;
+        if (testY > worldH) testY = worldH;
         
         if (checkMapSpawnPosition(testX, testY, newAIPlayer.size, boxes)) {
           newAIPlayer.x = testX;
@@ -129,7 +142,15 @@ export class AIManager {
       
       if (!foundValidPosition) {
         console.warn("Could not find a valid spawn position for AI player");
-        return; // Don't spawn if we can't find a valid position
+        // As a last resort, scan random points across map
+        for (let i = 0; i < 50 && !foundValidPosition; i++) {
+            const rx = Math.random() * worldW;
+            const ry = Math.random() * worldH;
+          if (checkMapSpawnPosition(rx, ry, newAIPlayer.size, boxes)) {
+            newAIPlayer.x = rx; newAIPlayer.y = ry; foundValidPosition = true; break;
+          }
+        }
+        if (!foundValidPosition) return; // abort
       }    }
     
     // Check final position against human player and other AI

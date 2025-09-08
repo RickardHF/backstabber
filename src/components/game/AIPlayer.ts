@@ -219,12 +219,15 @@ export const updateAiPlayer = (
   }
     // Keep AI player within canvas bounds and change rotation if hitting a wall
   if (canvas) {
-    // Check if AI player would go out of bounds
+    const { MAP_CONFIG } = require('./MapLayout');
+    const worldW = MAP_CONFIG.width;
+    const worldH = MAP_CONFIG.height;
+    // Check if AI player would go out of world bounds
     const wouldHitWall = 
       newX < aiPlayer.size || 
-      newX > canvas.width - aiPlayer.size ||
+      newX > worldW - aiPlayer.size ||
       newY < aiPlayer.size || 
-      newY > canvas.height - aiPlayer.size;
+      newY > worldH - aiPlayer.size;
     
     // Change rotation if hitting a wall
     if (wouldHitWall) {
@@ -245,8 +248,8 @@ export const updateAiPlayer = (
     }
     
     // Ensure the AI stays within bounds regardless
-    newX = Math.max(aiPlayer.size, Math.min(canvas.width - aiPlayer.size, newX));
-    newY = Math.max(aiPlayer.size, Math.min(canvas.height - aiPlayer.size, newY));
+  newX = Math.max(aiPlayer.size, Math.min(worldW - aiPlayer.size, newX));
+  newY = Math.max(aiPlayer.size, Math.min(worldH - aiPlayer.size, newY));
   }
     // Check for and handle collisions with all entities
   const collidableEntities = [player, ...boxes];

@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Player, Box, AIManagerConfig } from './game/types';
-import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection, startFrameTiming } from './game/rendering';
+import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection, startFrameTiming, drawTileMap } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { AIManager } from './game/AIManager';
 import MobileControls from './game/MobileControls';
 import { useIsMobile } from './game/useIsMobile';
 import { useFullscreen } from './game/useFullscreen';
 import { useOrientation } from './game/useOrientation';
-import { generateMapLayout, getUserSpawnPoint } from './game/MapLayout';
+import { generateMapLayout, getUserSpawnPoint, loadMapFromTiled, hasTiledMapLoaded, getTiledMapBoxes, MAP_CONFIG } from './game/MapLayout';
 import { debugSpriteLoading } from '../utils/debugSprites';
 
 interface GameProps {
@@ -16,11 +16,18 @@ interface GameProps {
 
 const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Reusable offscreen canvas to avoid per-frame allocations
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const offscreenCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // Simple perf stats
+  const frameCountRef = useRef<number>(0);
+  const lastFpsSampleRef = useRef<number>(performance.now());
+  const [fps, setFps] = useState<number>(0);
   
   // Get user spawn point from map layout
   const userSpawn = getUserSpawnPoint();
     // Human-controlled player
-  const [player, setPlayer] = useState<Player>({
+  const initialPlayer: Player = {
     id: 'player1',
     x: userSpawn.x,
     y: userSpawn.y,
@@ -38,9 +45,10 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       visionConeAngle: 220, // Same 220-degree field of view as AI
       visionDistance: 40 * 5 // 5x the body size - slightly larger than AI
     }
-  });// AI Manager configuration
-  const [aiManagerConfig] = useState<AIManagerConfig>({
-    maxBots: 2, // Default to 2 bots maximum
+  };
+  const [player, setPlayer] = useState<Player>(initialPlayer);// AI Manager configuration
+  const [aiManagerConfig, setAiManagerConfig] = useState<AIManagerConfig>({
+    maxBots: MAP_CONFIG.maxBots || 2, // will sync after map load
     spawnLocation: { x: 200, y: 200 }, // This will be overridden by the MapLayout system
     minSpawnDelay: 3000, // Min 3 seconds between spawns
     maxSpawnDelay: 6000, // Max 6 seconds between spawns
@@ -52,6 +60,11 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   
   // Create walls using the fixed map layout
   const [boxes, setBoxes] = useState<Box[]>([]);
+  // Refs mirroring frequently updated objects to avoid effect churn
+  const playerRef = useRef<Player>(initialPlayer);
+  const boxesRef = useRef<Box[]>([]);
+  useEffect(() => { playerRef.current = player; }, [player]);
+  useEffect(() => { boxesRef.current = boxes; }, [boxes]);
   
   // Track attack cooldown
   const [attackCooldown, setAttackCooldown] = useState<boolean>(false);
@@ -235,12 +248,16 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       killedBy: null
     });
     
-    // Generate new map layout
-    const canvas = canvasRef.current;
-    if (canvas) {
-      setBoxes(generateMapLayout(canvas.width, canvas.height));
+    // Reapply map (prefer Tiled map if loaded)
+    if (hasTiledMapLoaded()) {
+      setBoxes(getTiledMapBoxes());
     } else {
-      setBoxes(generateMapLayout());
+      const canvas = canvasRef.current;
+      if (canvas) {
+        setBoxes(generateMapLayout(canvas.width, canvas.height));
+      } else {
+        setBoxes(generateMapLayout());
+      }
     }
     
     // Play a restart sound if available
@@ -253,9 +270,34 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
   }, [deathAnimation.animationFrameId, aiManagerConfig]);  // Initialize map layout and AI Manager when component mounts
   useEffect(() => {
-    setBoxes(generateMapLayout()); // Generate the fixed map layout
-    
-    // Debug sprite loading in development/deployment
+    // Initial one-time map load & AI manager creation. Previous implementation depended on aiManagerConfig
+    // and re-ran on every config update, constantly recreating the manager & reloading the map (freeze/regression).
+    let cancelled = false;
+    loadMapFromTiled('/maps/arena.tmj')
+      .then((walls: Box[]) => {
+        if (cancelled) return;
+        setBoxes(walls);
+        const spawn = getUserSpawnPoint();
+        setPlayer(prev => ({ ...prev, x: spawn.x, y: spawn.y }));
+        if (typeof window !== 'undefined') {
+          (window as unknown as { MAP_CONFIG?: typeof MAP_CONFIG }).MAP_CONFIG = MAP_CONFIG;
+        }
+        // Sync maxBots from loaded map only once here; further dynamic changes come from MapLayout if needed.
+        setAiManagerConfig(prev => {
+          const next = { ...prev, maxBots: MAP_CONFIG.maxBots || prev.maxBots };
+          return next;
+        });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.warn('Tiled map load failed, using static layout:', err);
+        setBoxes(generateMapLayout());
+        if (typeof window !== 'undefined') {
+          (window as unknown as { MAP_CONFIG?: typeof MAP_CONFIG }).MAP_CONFIG = MAP_CONFIG;
+        }
+        setAiManagerConfig(prev => ({ ...prev, maxBots: MAP_CONFIG.maxBots || prev.maxBots }));
+      });
+
     if (typeof window !== 'undefined') {
       debugSpriteLoading().then((workingPaths) => {
         if (workingPaths) {
@@ -265,13 +307,19 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         }
       });
     }
-    
-    // Initialize AI Manager
+
     if (!aiManagerRef.current) {
-      console.log("Initializing AI Manager with config:", aiManagerConfig);
+      // Use current (possibly soon-to-be-updated) config; it will be patched by separate config effect below.
+      console.log('[Game] Initializing AI Manager once with config:', aiManagerConfig);
       aiManagerRef.current = new AIManager(aiManagerConfig);
+      if (typeof window !== 'undefined') {
+        (window as unknown as { MAP_CONFIG?: typeof MAP_CONFIG }).MAP_CONFIG = MAP_CONFIG;
+      }
     }
-  }, [aiManagerConfig]);
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time init
+  }, []);
     // Mobile controls
   const isMobile = useIsMobile();
   const orientation = useOrientation();
@@ -366,20 +414,45 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Draw a grid for the top-down view
-    drawGrid(ctx, canvas);
-    // Create an offscreen canvas to draw the full scene first
-    const offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = canvas.width;
-    offscreenCanvas.height = canvas.height;
-    const offCtx = offscreenCanvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // --- Camera calculation (scrolling world) ---
+  // Map pixel dimensions (world size) from Tiled (may differ from viewport)
+  const mapWidth = MAP_CONFIG.width; // world width
+  const mapHeight = MAP_CONFIG.height; // world height
+  const viewW = canvas.width;   // fixed viewport width
+  const viewH = canvas.height;  // fixed viewport height
+  // Center camera on player but clamp to map bounds
+  const p = playerRef.current;
+  let cameraX = p.x - viewW / 2;
+  let cameraY = p.y - viewH / 2;
+  if (cameraX < 0) cameraX = 0;
+  if (cameraY < 0) cameraY = 0;
+  if (cameraX > mapWidth - viewW) cameraX = Math.max(0, mapWidth - viewW);
+  if (cameraY > mapHeight - viewH) cameraY = Math.max(0, mapHeight - viewH);
+  const pvx = p.x - cameraX; // player viewport X
+  const pvy = p.y - cameraY; // player viewport Y
+
+  // Reusable offscreen canvas (tilemap + actors)
+    if (!offscreenCanvasRef.current) {
+      offscreenCanvasRef.current = document.createElement('canvas');
+      offscreenCanvasRef.current.width = canvas.width;
+      offscreenCanvasRef.current.height = canvas.height;
+      offscreenCtxRef.current = offscreenCanvasRef.current.getContext('2d');
+    } else if (offscreenCanvasRef.current.width !== canvas.width || offscreenCanvasRef.current.height !== canvas.height) {
+      offscreenCanvasRef.current.width = canvas.width;
+      offscreenCanvasRef.current.height = canvas.height;
+    }
+    const offCtx = offscreenCtxRef.current || offscreenCanvasRef.current.getContext('2d');
     if (!offCtx) return;
-    // Draw grid on the offscreen canvas
-    drawGrid(offCtx, offscreenCanvas);
+    offCtx.clearRect(0, 0, offscreenCanvasRef.current.width, offscreenCanvasRef.current.height);
+  // Draw world translated so that camera view is captured into 0,0..viewW,viewH
+  offCtx.save();
+  offCtx.translate(-cameraX, -cameraY);
+  const tileDrawn = drawTileMap(offCtx); // draws full map; translation selects visible window
+  if (!tileDrawn && offscreenCanvasRef.current) drawGrid(offCtx, offscreenCanvasRef.current);
     // Draw boxes first so they appear as background obstacles
-    boxes.forEach(box => { drawBox(offCtx, box); });
+  boxesRef.current.forEach(box => { drawBox(offCtx, box); });
     const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
     aiPlayers.forEach(aiPlayer => {
       const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
@@ -391,11 +464,11 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             aiVision.canSeePlayer,
             aiVision.visionConeAngle,
             aiVision.visionDistance,
-            boxes,
-            player
+      boxesRef.current,
+      p
           );
         }
-        if (!player.isDead && !aiPlayer.isDead && isPlayerBehindAI(player, aiPlayer, aiVision)) {
+    if (!p.isDead && !aiPlayer.isDead && isPlayerBehindAI(p, aiPlayer, aiVision)) {
           offCtx.beginPath();
           offCtx.arc(aiPlayer.x, aiPlayer.y, aiPlayer.size + 8, 0, Math.PI * 2);
           offCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
@@ -411,8 +484,13 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       }
       drawPlayer(offCtx, aiPlayer);
     });
+    offCtx.restore(); // end world translation
     if (player.isDead) {
-      drawPlayerDeath(offCtx, player, deathAnimation.killedBy, deathAnimation.progress);
+      // Draw death animation onto world layer with translation
+      offCtx.save();
+      offCtx.translate(-cameraX, -cameraY);
+  drawPlayerDeath(offCtx, p, deathAnimation.killedBy, deathAnimation.progress);
+      offCtx.restore();
       if (deathAnimation.progress >= 0.5 && deathAnimation.progress < 1) {
         const overlayOpacity = (deathAnimation.progress - 0.5) * 2 * 0.5;
         offCtx.save();
@@ -420,51 +498,55 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         offCtx.fillRect(0, 0, canvas.width, canvas.height);
         offCtx.restore();
       }
-      ctx.drawImage(offscreenCanvas, 0, 0);
+  ctx.drawImage(offscreenCanvasRef.current, 0, 0);
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
-      if (player.vision) {
-        const selfVisibilityRadius = player.size * 3;
+      if (p.vision) {
+  const selfVisibilityRadius = p.size * 3;
         ctx.beginPath();
-        ctx.arc(player.x, player.y, selfVisibilityRadius, 0, Math.PI * 2);
-        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = player.rotation || 0;
+        ctx.arc(pvx, pvy, selfVisibilityRadius, 0, Math.PI * 2);
+        const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = p.rotation || 0;
         const startAngle = baseAngle - visionConeAngleRad / 2;
         const rayCount = 60;
-        ctx.moveTo(player.x, player.y);
+        ctx.moveTo(pvx, pvy);
         for (let i = 0; i <= rayCount; i++) {
           const rayAngle = startAngle + (i / rayCount) * visionConeAngleRad;
           const dirX = Math.cos(rayAngle);
           const dirY = Math.sin(rayAngle);
-          let rayLength = player.vision.visionDistance;
-          for (const box of boxes) {
-            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, box);
+          let rayLength = p.vision.visionDistance;
+          for (const box of boxesRef.current) {
+            const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, box);
             if (dist !== null && dist < rayLength) { rayLength = dist; }
           }
           for (const aiPlayer of aiPlayers) {
             if (aiPlayer.isDead) continue;
             const aiBox = { ...aiPlayer, width: aiPlayer.size * 2, height: aiPlayer.size * 2, color: 'unused' };
-            const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, aiBox as Box);
+            const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, aiBox as Box);
             if (dist !== null && dist < rayLength) {
               const guaranteedVisibleDistance = 30;
               const extendedDistance = dist + guaranteedVisibleDistance;
               rayLength = Math.min(rayLength, extendedDistance);
             }
           }
-          const endX = player.x + dirX * rayLength;
-          const endY = player.y + dirY * rayLength;
-          ctx.lineTo(endX, endY);
+          const endX = p.x + dirX * rayLength;
+          const endY = p.y + dirY * rayLength;
+          ctx.lineTo(endX - cameraX, endY - cameraY);
         }
         ctx.closePath();
         ctx.clip();
-        ctx.drawImage(offscreenCanvas, 0, 0);
+  ctx.drawImage(offscreenCanvasRef.current, 0, 0);
         ctx.restore();
       }
-      drawPlayer(ctx, player);
+      // Ensure player always visible (draw over mask) using translation
+      ctx.save();
+      ctx.translate(-cameraX, -cameraY);
+  drawPlayer(ctx, p);
+      ctx.restore();
       if (graceActive) {
         ctx.beginPath();
-        ctx.arc(player.x, player.y, player.size + 8, 0, Math.PI * 2);
+        ctx.arc(pvx, pvy, p.size + 8, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(64, 196, 255, 0.8)';
         ctx.lineWidth = 2;
         ctx.setLineDash([2, 2]);
@@ -473,17 +555,17 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         ctx.font = '12px Arial';
         ctx.fillStyle = 'rgba(64, 196, 255, 0.8)';
         ctx.textAlign = 'center';
-        ctx.fillText('Shield Active', player.x, player.y - player.size - 10);
+        ctx.fillText('Shield Active', pvx, pvy - p.size - 10);
       }
-      if (player.vision) {
+      if (p.vision) {
         ctx.save();
-        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = player.rotation || 0;
+        const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = p.rotation || 0;
         const startAngle = baseAngle - visionConeAngleRad / 2;
         const endAngle = baseAngle + visionConeAngleRad / 2;
         ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
-        ctx.arc(player.x, player.y, player.vision.visionDistance, startAngle, endAngle);
+        ctx.moveTo(pvx, pvy);
+  ctx.arc(pvx, pvy, p.vision!.visionDistance, startAngle, endAngle);
         ctx.closePath();
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 1;
@@ -492,23 +574,30 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         ctx.setLineDash([]);
         ctx.restore();
       }
-      if (!graceActive && !player.isDead && player.vision) {
+      if (!graceActive && !p.isDead && p.vision) {
         ctx.save();
-        const visionConeAngleRad = (player.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = player.rotation || 0;
+        const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
+        const baseAngle = p.rotation || 0;
         const blindSpotStartAngle = baseAngle + visionConeAngleRad / 2;
         const blindSpotEndAngle = baseAngle - visionConeAngleRad / 2 + 2 * Math.PI;
-        const indicatorDistance = player.size * 2;
+        const indicatorDistance = p.size * 2;
         ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
-        ctx.arc(player.x, player.y, indicatorDistance, blindSpotStartAngle, blindSpotEndAngle);
+        ctx.moveTo(pvx, pvy);
+        ctx.arc(pvx, pvy, indicatorDistance, blindSpotStartAngle, blindSpotEndAngle);
         ctx.closePath();
         ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
         ctx.fill();
         ctx.restore();
       }
     }
-  }, [boxes, player, deathAnimation.killedBy, deathAnimation.progress, graceActive]);
+    frameCountRef.current += 1;
+    const nowPerf = performance.now();
+    if (nowPerf - lastFpsSampleRef.current >= 1000) {
+      setFps(frameCountRef.current);
+      frameCountRef.current = 0;
+      lastFpsSampleRef.current = nowPerf;
+    }
+  }, [deathAnimation.killedBy, deathAnimation.progress, graceActive]);
 
     // Game loop
   useEffect(() => {
@@ -519,6 +608,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     let lastTime: number | null = null;
     
     const gameLoop = (time?: number) => {
+      try {
       const now = time ?? performance.now();
       let deltaTimeSeconds = 1 / 60;
       if (lastTime !== null) {
@@ -529,9 +619,9 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       // Calculate time passed since last frame for AI Manager
       
       // Get all active AI players
-      const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
+  const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
 
-      if (!player.isDead) {
+  if (!playerRef.current.isDead) {
         // Update player position with collision detection only if alive
         setPlayer(prevPlayer => {
           if (prevPlayer.isDead) return prevPlayer; // freeze
@@ -539,7 +629,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             prevPlayer,
             keysPressed,
             canvasRef.current,
-            boxes,
+    boxesRef.current,
             isMobile ? joystickInput : undefined,
             deltaTimeSeconds,
             ...aiPlayers
@@ -559,13 +649,13 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       }
 
       // Update AI only if player alive
-      if (aiManagerRef.current && gameActive && !player.isDead) {
+    if (aiManagerRef.current && gameActive && !playerRef.current.isDead) {
         // Use performance.now() for consistent timing with the AI Manager
   const currentTime = now; // reuse timestamp from RAF
         aiManagerRef.current.updateAllAIPlayers(
-          player,
+      playerRef.current,
           canvasRef.current,
-          boxes,
+      boxesRef.current,
           currentTime
         );
       }
@@ -574,7 +664,12 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   renderGame();
       
       // Continue the game loop if game is active
-      if (gameActive && (!player.isDead || (player.isDead && deathAnimation.progress < 1))) {
+      if (gameActive && (!playerRef.current.isDead || (playerRef.current.isDead && deathAnimation.progress < 1))) {
+        animationFrameId = requestAnimationFrame(gameLoop);
+      }
+      } catch (err) {
+        console.error('[GameLoop] fatal frame error', err);
+        // Attempt to keep loop alive
         animationFrameId = requestAnimationFrame(gameLoop);
       }
     };
@@ -583,7 +678,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [keysPressed, player, boxes, aiManagerConfig, gameActive, joystickInput, isMobile, deathAnimation.progress, graceActive, renderGame, handlePlayerDeath]);
+  }, [keysPressed, aiManagerConfig, gameActive, joystickInput, isMobile, deathAnimation.progress, graceActive, renderGame, handlePlayerDeath]);
   return (    <div ref={gameContainerRef} className="flex flex-col items-center w-full max-w-screen-xl mx-auto p-2 md:p-4 mobile-landscape-game">
       <div className="flex items-center justify-between w-full mb-3 md:mb-5 game-header">
         <h1 className="game-title text-xl md:text-2xl lg:text-3xl">Arena</h1>
@@ -615,7 +710,12 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             aspectRatio: '4/3',
             maxHeight: 'min(75vh, 600px)'
           }}
-        ></canvas>{attackCooldown && !player.isDead && (
+        ></canvas>
+        {/* Debug overlay */}
+        <div style={{position:'absolute',left:8,top:8,font:'10px monospace',color:'#0f0',background:'rgba(0,0,0,0.35)',padding:'2px 4px',borderRadius:3}}>
+          FPS {fps}
+        </div>
+        {attackCooldown && !player.isDead && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 hud-counter bg-black/70 !text-[var(--accent-glow)]">
             COOLING
           </div>

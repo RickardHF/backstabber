@@ -178,10 +178,15 @@ export const updatePlayer = (
       newDirection = 'up';
     }
   }
-  // Keep player within canvas bounds
+  // Keep player within world (map) bounds (independent of viewport size)
   if (canvas) {
-    newX = Math.max(player.size, Math.min(canvas.width - player.size, newX));
-    newY = Math.max(player.size, Math.min(canvas.height - player.size, newY));
+    // Use MAP_CONFIG from MapLayout for world size
+    // (lazy import to avoid circular dependency at top level)
+    const { MAP_CONFIG } = require('./MapLayout');
+    const worldW = MAP_CONFIG.width;
+    const worldH = MAP_CONFIG.height;
+    newX = Math.max(player.size, Math.min(worldW - player.size, newX));
+    newY = Math.max(player.size, Math.min(worldH - player.size, newY));
   }
     // Check for collisions and adjust position if necessary
   

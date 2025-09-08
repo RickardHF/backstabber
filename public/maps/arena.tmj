@@ -1,0 +1,73 @@
+{
+  "compressionlevel": -1,
+  "height": 15,
+  "infinite": false,
+  "layers": [
+    {
+      "id": 1,
+      "name": "Ground",
+      "type": "tilelayer",
+      "width": 20,
+      "height": 15,
+      "visible": true,
+      "opacity": 1,
+      "x": 0,
+      "y": 0,
+      "data": [
+        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Spawns",
+      "type": "objectgroup",
+      "draworder": "topdown",
+      "visible": true,
+      "opacity": 1,
+      "objects": [
+        {"id": 101, "name": "UserSpawn", "type": "spawn", "x": 100, "y": 300, "point": true, "properties": [{"name":"spawnType","type":"string","value":"user"}]},
+        {"id": 102, "name": "AISpawn1", "type": "spawn", "x": 650, "y": 150, "point": true, "properties": [{"name":"spawnType","type":"string","value":"ai"}]},
+        {"id": 103, "name": "AISpawn2", "type": "spawn", "x": 650, "y": 450, "point": true, "properties": [{"name":"spawnType","type":"string","value":"ai"}]},
+        {"id": 104, "name": "AISpawn3", "type": "spawn", "x": 400, "y": 100, "point": true, "properties": [{"name":"spawnType","type":"string","value":"ai"}]},
+        {"id": 105, "name": "AISpawn4", "type": "spawn", "x": 400, "y": 500, "point": true, "properties": [{"name":"spawnType","type":"string","value":"ai"}]}
+      ]
+    }
+  ],
+  "nextlayerid": 3,
+  "nextobjectid": 200,
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "tiledversion": "1.11.0",
+  "tileheight": 32,
+  "tilewidth": 32,
+  "type": "map",
+  "version": "1.10",
+  "width": 20,
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "name": "tiles",
+      "tilewidth": 32,
+      "tileheight": 32,
+      "tilecount": 2,
+      "columns": 2,
+      "image": "/sprites/tiles.png",
+      "imagewidth": 64,
+      "imageheight": 32
+    }
+  ]
+}

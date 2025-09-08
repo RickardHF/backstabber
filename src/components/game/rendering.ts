@@ -6,6 +6,7 @@ import {
   createEnemySpriteFromImage,
   preloadAllSprites 
 } from './sprites';
+import { getTileMap } from './MapLayout';
 
 // Helper function to draw grid
 export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
@@ -19,8 +20,10 @@ export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElemen
   ctx.fillStyle = canvasBg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
+  const tileMap = getTileMap();
+  const cell = tileMap ? tileMap.tileWidth : 40;
   // Vertical lines
-  for (let x = 0; x < canvas.width; x += 40) {
+  for (let x = 0; x < canvas.width; x += cell) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, canvas.height);
@@ -28,13 +31,84 @@ export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElemen
   }
   
   // Horizontal lines
-  for (let y = 0; y < canvas.height; y += 40) {
+  for (let y = 0; y < canvas.height; y += cell) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(canvas.width, y);
     ctx.stroke();
   }
 };
+
+// ---- Tile Map Rendering (tiles.png first= floor, second= wall) ----
+let tileSheet: HTMLImageElement | null = null;
+let tileSheetLoaded = false;
+let tileSheetLoadingStarted = false;
+let cachedTileCanvas: HTMLCanvasElement | null = null;
+let cachedTileKey = '';
+
+// Synchronous tilemap draw attempt. Returns true if tile layer drawn (from cache), false otherwise.
+// If resources aren't ready yet it will kick off loading and future frames will succeed automatically.
+export const drawTileMap = (ctx: CanvasRenderingContext2D): boolean => {
+  const tm = getTileMap();
+  if (!tm) return false; // map not yet parsed
+
+  const key = `${tm.width}x${tm.height}x${tm.tileWidth}`;
+  if (cachedTileCanvas && cachedTileKey === key) {
+    ctx.drawImage(cachedTileCanvas, 0, 0);
+    return true;
+  }
+
+  // Begin loading sprite sheet if not started
+  if (!tileSheetLoadingStarted) {
+    tileSheetLoadingStarted = true;
+    tileSheet = new Image();
+    tileSheet.onload = () => {
+      tileSheetLoaded = true;
+      // Build cached canvas immediately on load if map still available
+      const current = getTileMap();
+      if (!current) return;
+      buildTileCache(current);
+    };
+    tileSheet.onerror = (e) => {
+      console.error('Failed to load tile sheet /sprites/tiles.png', e);
+    };
+    tileSheet.src = '/sprites/tiles.png';
+  }
+
+  // If sheet loaded but cache not built yet, build now
+  if (tileSheetLoaded && tileSheet && !cachedTileCanvas) {
+    buildTileCache(tm);
+    if (cachedTileCanvas) {
+      ctx.drawImage(cachedTileCanvas, 0, 0);
+      return true;
+    }
+  }
+
+  return false; // not ready this frame
+};
+
+function buildTileCache(tm: ReturnType<typeof getTileMap>) {
+  if (!tm || !tileSheet) return;
+  const key = `${tm.width}x${tm.height}x${tm.tileWidth}`;
+  const off = document.createElement('canvas');
+  off.width = tm.width * tm.tileWidth;
+  off.height = tm.height * tm.tileHeight;
+  const octx = off.getContext('2d');
+  if (!octx) return;
+  const cols = Math.floor(tileSheet.width / tm.tileWidth);
+  for (let y = 0; y < tm.height; y++) {
+    for (let x = 0; x < tm.width; x++) {
+      const gid = tm.data[y * tm.width + x];
+      if (gid <= 0) continue;
+      const tileIndex = gid - 1;
+      const sx = (tileIndex % cols) * tm.tileWidth;
+      const sy = Math.floor(tileIndex / cols) * tm.tileHeight;
+      octx.drawImage(tileSheet, sx, sy, tm.tileWidth, tm.tileHeight, x * tm.tileWidth, y * tm.tileHeight, tm.tileWidth, tm.tileHeight);
+    }
+  }
+  cachedTileCanvas = off;
+  cachedTileKey = key;
+}
 
 // Helper function to draw boxes
 export const drawBox = (ctx: CanvasRenderingContext2D, box: Box) => {
