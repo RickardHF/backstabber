@@ -1,5 +1,6 @@
 import { Player, Direction, Box, AIVision } from './types';
 import { calculateNonCollidingPosition } from './collision';
+import { MAP_CONFIG } from './MapLayout';
 
 // Function to check if player is behind an AI bot (outside of vision cone)
 export const isPlayerBehindAI = (
@@ -181,8 +182,6 @@ export const updatePlayer = (
   // Keep player within world (map) bounds (independent of viewport size)
   if (canvas) {
     // Use MAP_CONFIG from MapLayout for world size
-    // (lazy import to avoid circular dependency at top level)
-    const { MAP_CONFIG } = require('./MapLayout');
     const worldW = MAP_CONFIG.width;
     const worldH = MAP_CONFIG.height;
     newX = Math.max(player.size, Math.min(worldW - player.size, newX));

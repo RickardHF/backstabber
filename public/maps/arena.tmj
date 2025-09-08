@@ -69,5 +69,8 @@
       "imagewidth": 64,
       "imageheight": 32
     }
-  ]
+  ],
+  "properties": {
+    "maxBots": 5
+  }
 }

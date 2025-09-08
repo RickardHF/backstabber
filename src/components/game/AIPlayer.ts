@@ -1,5 +1,6 @@
 import { Player, AIVision, Box } from './types';
 import { calculateNonCollidingPosition } from './collision';
+import { MAP_CONFIG } from './MapLayout';
 
 // Check if a line intersects with a box
 const lineIntersectsBox = (
@@ -219,7 +220,6 @@ export const updateAiPlayer = (
   }
     // Keep AI player within canvas bounds and change rotation if hitting a wall
   if (canvas) {
-    const { MAP_CONFIG } = require('./MapLayout');
     const worldW = MAP_CONFIG.width;
     const worldH = MAP_CONFIG.height;
     // Check if AI player would go out of world bounds

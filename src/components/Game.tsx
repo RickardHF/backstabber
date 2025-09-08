@@ -175,7 +175,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     };
     
     requestAnimationFrame(animatePlayerDeath);
-  }, [player.isDead, aiManagerRef]);  
+  }, [player.isDead]);
   // Reset game function - moved up to be defined before it's used in dependencies
   const resetGame = useCallback(() => {
     // Cancel any ongoing animation
@@ -597,7 +597,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       frameCountRef.current = 0;
       lastFpsSampleRef.current = nowPerf;
     }
-  }, [deathAnimation.killedBy, deathAnimation.progress, graceActive]);
+  }, [deathAnimation.killedBy, deathAnimation.progress, graceActive, playerRef, player.isDead]);
 
     // Game loop
   useEffect(() => {

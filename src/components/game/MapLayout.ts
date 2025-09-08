@@ -204,7 +204,8 @@ export const isValidSpawnPosition = (x: number, y: number, size: number, walls: 
 
 // ---------------- Tiled (.tmj) map loading support ----------------
 
-interface TiledProperty { name: string; type: string; value: any }
+// Tiled custom property (value can be several primitive types)
+interface TiledProperty { name: string; type: string; value: string | number | boolean | null }
 interface TiledObject {
   id: number;
   name: string;
