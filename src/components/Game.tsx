@@ -273,7 +273,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     // Initial one-time map load & AI manager creation. Previous implementation depended on aiManagerConfig
     // and re-ran on every config update, constantly recreating the manager & reloading the map (freeze/regression).
     let cancelled = false;
-    loadMapFromTiled('/maps/arena.tmj')
+    loadMapFromTiled('/maps/arena_large.tmj')
       .then((walls: Box[]) => {
         if (cancelled) return;
         setBoxes(walls);

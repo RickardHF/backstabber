@@ -218,7 +218,10 @@ interface TiledObject {
   properties?: TiledProperty[];
 }
 interface TiledLayer { id: number; name: string; type: string; width?: number; height?: number; data?: number[]; objects?: TiledObject[] }
-interface TiledMap { width: number; height: number; tilewidth: number; tileheight: number; layers: TiledLayer[]; properties?: TiledProperty[] }
+// Tiled 1.11 JSON can export map-level properties either as an array of objects
+// (default verbose mode) or as a compact key/value object when "Export compact JSON"
+// is enabled. Support both here so map authors can choose either format.
+interface TiledMap { width: number; height: number; tilewidth: number; tileheight: number; layers: TiledLayer[]; properties?: TiledProperty[] | Record<string, unknown> }
 
 export interface TileMapData {
   width: number;         // tiles
@@ -278,16 +281,34 @@ export const loadMapFromTiled = async (url: string): Promise<Box[]> => {
   MAP_CONFIG = { ...MAP_CONFIG, width: pixelWidth, height: pixelHeight };
 
   // Map-level properties (e.g. maxBots) with alias support
-  if (data.properties && Array.isArray(data.properties)) {
+  if (data.properties) {
     const maxBotPropAliases = ['maxBots','maxbots','maxAI','maxAi','maxai','maxEnemies','maxEnemy','enemies'];
-    const found = data.properties.find((p: TiledProperty) => maxBotPropAliases.includes(p.name));
-    if (found && typeof found.value === 'number' && !Number.isNaN(found.value)) {
-      const coerced = Math.max(0, Math.floor(found.value));
+    let candidateValue: number | null = null;
+    if (Array.isArray(data.properties)) {
+      // Standard Tiled export format
+      const found = (data.properties as TiledProperty[]).find(p => maxBotPropAliases.includes(p.name));
+      if (found && typeof found.value === 'number' && !Number.isNaN(found.value)) {
+        candidateValue = found.value;
+      }
+    } else if (typeof data.properties === 'object') {
+      // Compact export: properties as a plain object
+      for (const alias of maxBotPropAliases) {
+        if (Object.prototype.hasOwnProperty.call(data.properties, alias)) {
+          const raw = (data.properties as Record<string, unknown>)[alias];
+          if (typeof raw === 'number' && !Number.isNaN(raw)) {
+            candidateValue = raw;
+            break;
+          }
+        }
+      }
+    }
+    if (candidateValue !== null) {
+      const coerced = Math.max(0, Math.floor(candidateValue));
       if (coerced > 0) {
         MAP_CONFIG = { ...MAP_CONFIG, maxBots: coerced } as typeof MAP_CONFIG;
-        console.log('[MapLayout] maxBots (aliases supported) from map property', found.name, '=>', coerced);
+        console.log('[MapLayout] maxBots override from map properties =>', coerced);
       } else {
-        console.warn('[MapLayout] Ignoring non-positive maxBots value from property', found.name, found.value);
+        console.warn('[MapLayout] Ignoring non-positive maxBots value from map properties', candidateValue);
       }
     }
   }
