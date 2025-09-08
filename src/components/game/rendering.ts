@@ -72,7 +72,7 @@ export const drawTileMap = (ctx: CanvasRenderingContext2D): boolean => {
     tileSheet.onerror = (e) => {
       console.error('Failed to load tile sheet /sprites/tiles.png', e);
     };
-    tileSheet.src = '/sprites/tiles.png';
+    tileSheet.src = 'sprites/tiles.png';
   }
 
   // If sheet loaded but cache not built yet, build now

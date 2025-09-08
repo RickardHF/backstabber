@@ -91,7 +91,7 @@
       "tileheight": 32,
       "tilecount": 2,
       "columns": 2,
-      "image": "/sprites/tiles.png",
+      "image": "sprites/tiles.png",
       "imagewidth": 64,
       "imageheight": 32
     }
