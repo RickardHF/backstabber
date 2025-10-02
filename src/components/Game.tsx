@@ -541,44 +541,83 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       if (p.vision) {
-  const selfVisibilityRadius = p.size * 2;
-        ctx.beginPath();
-        ctx.arc(pvx, pvy, selfVisibilityRadius, 0, Math.PI * 2);
-        const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = p.rotation || 0;
-        const startAngle = baseAngle - visionConeAngleRad / 2;
-        const rayCount = 60;
-        ctx.moveTo(pvx, pvy);
-        for (let i = 0; i <= rayCount; i++) {
-          const rayAngle = startAngle + (i / rayCount) * visionConeAngleRad;
-          const dirX = Math.cos(rayAngle);
-          const dirY = Math.sin(rayAngle);
-          let rayLength = p.vision.visionDistance;
-          for (const box of boxesRef.current) {
-            const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, box);
-            if (dist !== null && dist < rayLength) { 
-              rayLength = Math.min(rayLength, dist + 8); // Show a tiny bit of wall
+        // Create vision mask with fading edges
+        const visionMaskCanvas = document.createElement('canvas');
+        visionMaskCanvas.width = canvas.width;
+        visionMaskCanvas.height = canvas.height;
+        const visionCtx = visionMaskCanvas.getContext('2d');
+        if (visionCtx) {
+          // Create radial gradient for fading effect within the cone
+          const gradient = visionCtx.createRadialGradient(pvx, pvy, 0, pvx, pvy, p.vision.visionDistance);
+          gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); // Fully opaque at center
+          gradient.addColorStop(0.8, 'rgba(255, 255, 255, 0.6)'); // Start fading
+          gradient.addColorStop(1, 'rgba(255, 255, 255, 0)'); // Fully transparent at edge
+          
+          visionCtx.fillStyle = gradient;
+          
+          // Draw vision cone shape on mask
+          const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
+          const baseAngle = p.rotation || 0;
+          const startAngle = baseAngle - visionConeAngleRad / 2;
+          const rayCount = 60;
+          
+          visionCtx.beginPath();
+          visionCtx.moveTo(pvx, pvy);
+          
+          for (let i = 0; i <= rayCount; i++) {
+            const rayAngle = startAngle + (i / rayCount) * visionConeAngleRad;
+            const dirX = Math.cos(rayAngle);
+            const dirY = Math.sin(rayAngle);
+            let rayLength = p.vision.visionDistance;
+            
+            // Check intersections with boxes
+            for (const box of boxesRef.current) {
+              const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, box);
+              if (dist !== null && dist < rayLength) { 
+                rayLength = Math.min(rayLength, dist + 8); // Show a tiny bit of wall
+              }
             }
-          }
-          for (const aiPlayer of aiPlayers) {
-            if (aiPlayer.isDead) continue;
-            const aiBox = { ...aiPlayer, width: aiPlayer.size * 2, height: aiPlayer.size * 2, color: 'unused' };
-            const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, aiBox as Box);
-            if (dist !== null && dist < rayLength) {
-              const guaranteedVisibleDistance = 30;
-              const extendedDistance = dist + guaranteedVisibleDistance;
-              rayLength = Math.min(rayLength, extendedDistance);
+            
+            // Check intersections with AI players
+            for (const aiPlayer of aiPlayers) {
+              if (aiPlayer.isDead) continue;
+              const aiBox = { ...aiPlayer, width: aiPlayer.size * 2, height: aiPlayer.size * 2, color: 'unused' };
+              const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, aiBox as Box);
+              if (dist !== null && dist < rayLength) {
+                const guaranteedVisibleDistance = 30;
+                const extendedDistance = dist + guaranteedVisibleDistance;
+                rayLength = Math.min(rayLength, extendedDistance);
+              }
             }
+            
+            const endX = p.x + dirX * rayLength;
+            const endY = p.y + dirY * rayLength;
+            visionCtx.lineTo(endX - cameraX, endY - cameraY);
           }
-          const endX = p.x + dirX * rayLength;
-          const endY = p.y + dirY * rayLength;
-          ctx.lineTo(endX - cameraX, endY - cameraY);
+          
+          visionCtx.closePath();
+          visionCtx.fill();
+          
+          // Also add a small circle around the player for self-visibility
+          visionCtx.beginPath();
+          visionCtx.arc(pvx, pvy, p.size * 2, 0, Math.PI * 2);
+          visionCtx.fill();
         }
-        ctx.closePath();
-        ctx.clip();
-  ctx.drawImage(offscreenCanvasRef.current, 0, 0);
-        ctx.restore();
+        
+        // Draw the offscreen canvas content
+        ctx.drawImage(offscreenCanvasRef.current, 0, 0);
+        
+        // Apply vision mask using destination-in to clip and fade
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(visionMaskCanvas, 0, 0);
+        
+        // Reset composite operation
+        ctx.globalCompositeOperation = 'source-over';
+      } else {
+        // No vision - draw normally
+        ctx.drawImage(offscreenCanvasRef.current, 0, 0);
       }
+      ctx.restore();
       // Ensure player always visible (draw over mask) using translation
       ctx.save();
       ctx.translate(-cameraX, -cameraY);
