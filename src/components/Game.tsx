@@ -541,7 +541,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       if (p.vision) {
-  const selfVisibilityRadius = p.size * 3;
+  const selfVisibilityRadius = p.size * 2;
         ctx.beginPath();
         ctx.arc(pvx, pvy, selfVisibilityRadius, 0, Math.PI * 2);
         const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
@@ -556,7 +556,9 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           let rayLength = p.vision.visionDistance;
           for (const box of boxesRef.current) {
             const dist = rayBoxIntersection(p.x, p.y, dirX, dirY, box);
-            if (dist !== null && dist < rayLength) { rayLength = dist; }
+            if (dist !== null && dist < rayLength) { 
+              rayLength = Math.min(rayLength, dist + 8); // Show a tiny bit of wall
+            }
           }
           for (const aiPlayer of aiPlayers) {
             if (aiPlayer.isDead) continue;
@@ -603,29 +605,12 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         const endAngle = baseAngle + visionConeAngleRad / 2;
         ctx.beginPath();
         ctx.moveTo(pvx, pvy);
-  ctx.arc(pvx, pvy, p.vision!.visionDistance, startAngle, endAngle);
+        ctx.arc(pvx, pvy, p.vision!.visionDistance, startAngle, endAngle);
         ctx.closePath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
         ctx.restore();
       }
       if (!graceActive && !p.isDead && p.vision) {
-        ctx.save();
-        const visionConeAngleRad = (p.vision.visionConeAngle * Math.PI) / 180;
-        const baseAngle = p.rotation || 0;
-        const blindSpotStartAngle = baseAngle + visionConeAngleRad / 2;
-        const blindSpotEndAngle = baseAngle - visionConeAngleRad / 2 + 2 * Math.PI;
-        const indicatorDistance = p.size * 2;
-        ctx.beginPath();
-        ctx.moveTo(pvx, pvy);
-        ctx.arc(pvx, pvy, indicatorDistance, blindSpotStartAngle, blindSpotEndAngle);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
-        ctx.fill();
-        ctx.restore();
+        // Blind spot indicator removed
       }
     }
     frameCountRef.current += 1;
