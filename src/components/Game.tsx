@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Player, Box, AIManagerConfig } from './game/types';
 import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection, startFrameTiming, drawTileMap } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
+import { checkAiVision } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
 import MobileControls from './game/MobileControls';
 import { useIsMobile } from './game/useIsMobile';
@@ -638,10 +639,12 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           // Check if player collided with an AI bot, isn't already dead and not in grace period
           if (result.collidedWithAI && result.collidingAI && !prevPlayer.isDead && !graceActive) {
             const aiVision = aiManagerRef.current?.getAIVision(result.collidingAI.id);
-            const isPlayerBehind = aiVision ? isPlayerBehindAI(prevPlayer, result.collidingAI, aiVision) : false;
-            if (!isPlayerBehind) {
-              setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
-              return { ...result.updatedPlayer, isDead: true };
+            if (aiVision) {
+              const visionResult = checkAiVision(result.collidingAI, prevPlayer, aiVision, boxesRef.current);
+              if (visionResult.canSeePlayer) {
+                setTimeout(() => handlePlayerDeath(result.collidingAI!), 0);
+                return { ...result.updatedPlayer, isDead: true };
+              }
             }
           }
           return result.updatedPlayer;

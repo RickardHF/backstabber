@@ -387,8 +387,8 @@ export const loadMapFromTiled = async (url: string): Promise<Box[]> => {
         const spawnTypeProp = obj.properties?.find(p => p.name === 'spawnType');
         const spawnType = (spawnTypeProp?.value || obj.name || '').toString().toLowerCase();
         // Clamp spawn inside world bounds (use a small margin so we stay visible)
-        let sx = obj.x;
-        let sy = obj.y;
+        let sx = obj.x * data.tilewidth + data.tilewidth / 2;
+        let sy = obj.y * data.tileheight + data.tileheight / 2;
         const margin = 8; // pixels
         const maxX = pixelWidth - margin;
         const maxY = pixelHeight - margin;

@@ -1,7 +1,7 @@
 import { Player, AIVision, AIManagerConfig, Box } from './types';
 import { updateAiPlayer } from './AIPlayer';
 import { checkPlayerBoxCollision, checkPlayerCollision } from './collision';
-import { getRandomAISpawnPoint, isValidSpawnPosition as checkMapSpawnPosition, MAP_CONFIG } from './MapLayout';
+import { isValidSpawnPosition as checkMapSpawnPosition, MAP_CONFIG } from './MapLayout';
 
 /**
  * Manages multiple AI players, handling spawning, updating, and despawning
@@ -85,8 +85,22 @@ export class AIManager {
   const effectiveMax = MAP_CONFIG.maxBots ?? this.config.maxBots;
   if (this.aiPlayers.length >= effectiveMax) return;
     
-    // Get a random spawn point from the map layout
-    const spawnPoint = getRandomAISpawnPoint();
+    // Get available spawn points that are not near the human player
+    const minSpawnDistance = 250; // Minimum distance from human player to spawn
+    const availableSpawnPoints = MAP_CONFIG.aiSpawnPoints.filter(spawnPoint => {
+      const dx = spawnPoint.x - humanPlayer.x;
+      const dy = spawnPoint.y - humanPlayer.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      return distance > minSpawnDistance;
+    });
+
+    if (availableSpawnPoints.length === 0) {
+      console.log("No available spawn points far enough from human player");
+      return; // Don't spawn if no valid spawn points
+    }
+
+    // Pick a random available spawn point
+    const spawnPoint = availableSpawnPoints[Math.floor(Math.random() * availableSpawnPoints.length)];
     
     // Create a new AI player with spawn point location
     const newAIPlayer: Player = {
