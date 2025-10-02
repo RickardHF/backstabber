@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Player, Box, AIManagerConfig } from './game/types';
-import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection, startFrameTiming, drawTileMap } from './game/rendering';
+import { Player, Box, Item, PlayerEffect, AIManagerConfig } from './game/types';
+import { drawGrid, drawAiVisionCone, drawPlayer, drawBox, drawPlayerDeath, rayBoxIntersection, startFrameTiming, drawTileMap, drawItem } from './game/rendering';
 import { updatePlayer, isPlayerBehindAI } from './game/HumanPlayer';
 import { checkAiVision } from './game/AIPlayer';
 import { AIManager } from './game/AIManager';
@@ -61,17 +61,33 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   
   // Create walls using the fixed map layout
   const [boxes, setBoxes] = useState<Box[]>([]);
+  // Items on the map
+  const [items, setItems] = useState<Item[]>([]);
+  // Pending items that will spawn after delay
+  const [pendingItems, setPendingItems] = useState<Array<{item: Item, spawnTime: number}>>([]);
   // Refs mirroring frequently updated objects to avoid effect churn
   const playerRef = useRef<Player>(initialPlayer);
   const boxesRef = useRef<Box[]>([]);
+  const itemsRef = useRef<Item[]>([]);
+  const pendingItemsRef = useRef<Array<{item: Item, spawnTime: number}>>([]);
   useEffect(() => { playerRef.current = player; }, [player]);
   useEffect(() => { boxesRef.current = boxes; }, [boxes]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+  useEffect(() => { pendingItemsRef.current = pendingItems; }, [pendingItems]);
+  
+  // Sync active effects for UI display
+  useEffect(() => {
+    setActiveEffects(player.effects || []);
+  }, [player.effects]);
   
   // Track attack cooldown
   const [attackCooldown, setAttackCooldown] = useState<boolean>(false);
   
   // Track defeated enemies for scoring
   const [defeatedEnemies, setDefeatedEnemies] = useState<number>(0);
+  
+  // Track active effects for UI display
+  const [activeEffects, setActiveEffects] = useState<PlayerEffect[]>([]);
   
   // Game state management
   const [gameActive, setGameActive] = useState<boolean>(true);
@@ -109,6 +125,25 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
       if (aiVision && isPlayerBehindAI(player, aiPlayer, aiVision)) {
         // Player is behind AI and within backstabbing range
         aiManagerRef.current.markAIDead(aiPlayer.id);
+        
+        // Occasionally drop an item (e.g., 100% chance for testing)
+        if (Math.random() < 1.0) {
+          const newItem: Item = {
+            id: `item_${Date.now()}_${Math.random()}`,
+            x: aiPlayer.x,
+            y: aiPlayer.y,
+            direction: 'none',
+            speed: 0,
+            size: 16,
+            pulse: 0,
+            rotation: 0,
+            rotationSpeed: 0,
+            type: 'speedPotion',
+            spriteIndex: 0 // First sprite in items.png
+          };
+          console.log('Scheduling item drop at', aiPlayer.x, aiPlayer.y);
+          setPendingItems(prev => [...prev, { item: newItem, spawnTime: performance.now() + 1500 }]);
+        }
         
         // Add to the defeated enemies count
         setDefeatedEnemies(prev => prev + 1);
@@ -454,6 +489,8 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
   if (!tileDrawn && offscreenCanvasRef.current) drawGrid(offCtx, offscreenCanvasRef.current);
     // Draw boxes first so they appear as background obstacles
   boxesRef.current.forEach(box => { drawBox(offCtx, box); });
+    // Draw items
+  itemsRef.current.forEach(item => { drawItem(offCtx, item); });
     const aiPlayers = aiManagerRef.current?.getAIPlayers() || [];
     aiPlayers.forEach(aiPlayer => {
       const aiVision = aiManagerRef.current?.getAIVision(aiPlayer.id);
@@ -649,6 +686,49 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           }
           return result.updatedPlayer;
         });
+
+        // Check for item pickups
+        setItems(prevItems => {
+          const remainingItems = prevItems.filter(item => {
+            const dx = playerRef.current.x - item.x;
+            const dy = playerRef.current.y - item.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < (playerRef.current.size + item.size) / 2) {
+              // Pickup item
+              console.log('Picking up item', item.type);
+              if (item.type === 'speedPotion') {
+                setPlayer(prevPlayer => {
+                  // Check if speed boost is already active
+                  const hasSpeedBoost = prevPlayer.effects?.some(effect => effect.type === 'speedBoost');
+                  if (hasSpeedBoost) {
+                    // Reset duration of existing speed boost instead of stacking
+                    return {
+                      ...prevPlayer,
+                      effects: prevPlayer.effects?.map(effect => 
+                        effect.type === 'speedBoost' 
+                          ? { ...effect, duration: 10 } // Reset to 10 seconds
+                          : effect
+                      )
+                    };
+                  } else {
+                    // Add new speed boost
+                    return {
+                      ...prevPlayer,
+                      effects: [...(prevPlayer.effects || []), {
+                        type: 'speedBoost',
+                        duration: 10, // 10 seconds
+                        multiplier: 1.2 // 20% increase
+                      }]
+                    };
+                  }
+                });
+              }
+              return false; // Remove item
+            }
+            return true; // Keep item
+          });
+          return remainingItems;
+        });
       }
 
       // Update AI only if player alive
@@ -662,6 +742,26 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           currentTime
         );
       }
+
+      // Update player effects
+      setPlayer(prevPlayer => {
+        if (!prevPlayer.effects || prevPlayer.effects.length === 0) return prevPlayer;
+        const updatedEffects = prevPlayer.effects
+          .map(effect => ({ ...effect, duration: effect.duration - deltaTimeSeconds }))
+          .filter(effect => effect.duration > 0);
+        return { ...prevPlayer, effects: updatedEffects };
+      });
+
+      // Check for pending items ready to spawn
+      setPendingItems(prevPending => {
+        const now = performance.now();
+        const readyItems = prevPending.filter(pending => pending.spawnTime <= now);
+        if (readyItems.length > 0) {
+          setItems(prevItems => [...prevItems, ...readyItems.map(p => p.item)]);
+          console.log('Spawning', readyItems.length, 'items');
+        }
+        return prevPending.filter(pending => pending.spawnTime > now);
+      });
       
       // Render game
   renderGame();
@@ -701,6 +801,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           )}
         </div>
       </div>
+      
       <div className="relative panel w-full flex justify-center p-2 md:p-3">
         <canvas 
           ref={canvasRef} 
@@ -750,6 +851,29 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             </div>
             <p className="font-pixel text-[10px] mt-5 opacity-60">Press SPACE to restart</p>
           </div>        )}
+        {/* Active Effects Status Bar */}
+        {activeEffects.length > 0 && !player.isDead && (
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-4">
+            {activeEffects.map((effect, index) => (
+              <div key={index} className="flex items-center gap-2 bg-black/70 px-3 py-1 rounded border border-[var(--panel-border)]">
+                <span className="font-pixel text-[10px] tracking-wide text-[var(--gold)]">
+                  SPEED POTION
+                </span>
+                <div className="flex items-center gap-1">
+                  <div className="w-12 h-2 bg-[var(--background-alt)] border border-[var(--panel-border)] rounded">
+                    <div 
+                      className="h-full bg-[var(--accent-glow)] rounded transition-all duration-100"
+                      style={{ width: `${(effect.duration / 10) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="hud-counter text-xs min-w-[20px]">
+                    {Math.ceil(effect.duration)}s
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>        {/* Mobile Controls */}
       <MobileControls
         onMovement={handleJoystickMove}

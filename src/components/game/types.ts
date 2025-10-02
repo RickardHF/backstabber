@@ -34,6 +34,14 @@ export interface Player extends GameObject {
     visionConeAngle: number;  // Field of view angle in degrees
     visionDistance: number;   // How far the player can see
   };
+  effects?: PlayerEffect[];
+}
+
+// Player effect interface for temporary buffs/debuffs
+export interface PlayerEffect {
+  type: 'speedBoost';
+  duration: number; // Remaining duration in seconds
+  multiplier: number; // e.g., 1.2 for 20% increase
 }
 
 // AI vision state interface
@@ -57,6 +65,12 @@ export interface Box extends GameObject {
   width: number;
   height: number;
   color: string;
+}
+
+// Item interface for collectible items
+export interface Item extends GameObject {
+  type: 'speedPotion';
+  spriteIndex: number; // Index in the sprite sheet
 }
 
 // Generic collision object interface for collision detection system

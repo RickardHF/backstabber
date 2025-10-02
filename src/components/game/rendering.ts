@@ -1,4 +1,4 @@
-import { Player, Box } from './types';
+import { Player, Box, Item } from './types';
 import { directionColors, aiDirectionColors } from './constants';
 import { 
   CharacterSprite, 
@@ -130,6 +130,66 @@ export const drawBox = (ctx: CanvasRenderingContext2D, box: Box) => {
   ctx.strokeStyle = borderColor;
   ctx.lineWidth = 2;
   ctx.stroke();
+};
+
+// Helper function to draw items
+let itemSpriteSheet: HTMLImageElement | null = null;
+let itemSpriteLoaded = false;
+let itemAnimationTime = 0;
+
+const loadItemSprite = () => {
+  if (!itemSpriteLoaded) {
+    itemSpriteSheet = new Image();
+    itemSpriteSheet.src = '/sprites/items.png';
+    itemSpriteSheet.onload = () => {
+      itemSpriteLoaded = true;
+    };
+  }
+};
+
+export const drawItem = (ctx: CanvasRenderingContext2D, item: Item) => {
+  console.log('Drawing item at', item.x, item.y);
+  if (!itemSpriteLoaded) {
+    loadItemSprite();
+    return; // Don't draw until loaded
+  }
+
+  if (!itemSpriteSheet) return;
+
+  // Update animation time
+  itemAnimationTime += frameDeltaTime;
+
+  // Bobbing effect: move up and down
+  const bobOffset = Math.sin(itemAnimationTime * 0.005) * 3; // Adjust speed and amplitude
+
+  // Draw glow effect
+  const glowRadius = item.size * 1.5;
+  const gradient = ctx.createRadialGradient(
+    item.x, item.y + bobOffset, 0,
+    item.x, item.y + bobOffset, glowRadius
+  );
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)'); // White glow, fainter
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+  ctx.beginPath();
+  ctx.arc(item.x, item.y + bobOffset, glowRadius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // Assume items.png has sprites arranged in a grid, e.g., 32x32 pixels each
+  const spriteSize = 32;
+  const spritesPerRow = Math.floor(itemSpriteSheet.width / spriteSize);
+  const row = Math.floor(item.spriteIndex / spritesPerRow);
+  const col = item.spriteIndex % spritesPerRow;
+
+  const sx = col * spriteSize;
+  const sy = row * spriteSize;
+
+  ctx.drawImage(
+    itemSpriteSheet,
+    sx, sy, spriteSize, spriteSize,
+    item.x - item.size / 2, item.y - item.size / 2 + bobOffset, item.size, item.size
+  );
 };
 
 // Function to check if a ray intersects with a box and returns the distance to intersection

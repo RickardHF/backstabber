@@ -73,7 +73,16 @@ export const updatePlayer = (
   let newRotation = player.rotation || 0;
   const rotationSpeed = player.rotationSpeed || 0.05; // radians per second
   const rotationDelta = rotationSpeed * deltaTimeSeconds; // frame scaled rotation
-  const moveDeltaBase = player.speed * deltaTimeSeconds; // frame scaled movement (pixels this frame)
+  // Calculate effective speed with effects
+  let effectiveSpeed = player.speed;
+  if (player.effects) {
+    for (const effect of player.effects) {
+      if (effect.type === 'speedBoost') {
+        effectiveSpeed *= effect.multiplier;
+      }
+    }
+  }
+  const moveDeltaBase = effectiveSpeed * deltaTimeSeconds; // frame scaled movement (pixels this frame)
   let attemptedMove = false; // track whether any translational movement was requested this frame
 
   // Handle joystick input if provided
