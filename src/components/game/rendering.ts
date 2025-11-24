@@ -7,6 +7,7 @@ import {
   preloadAllSprites 
 } from './sprites';
 import { getTileMap } from './MapLayout';
+import { playerToBox } from './utils';
 
 // Helper function to draw grid
 export const drawGrid = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
@@ -233,23 +234,25 @@ export const rayBoxIntersection = (
   return tMin > 0 ? tMin : tMax;
 };
 
-// Helper function to draw AI vision cone with proper obstacle occlusion
-export const drawAiVisionCone = (
-  ctx: CanvasRenderingContext2D, 
-  aiPlayer: Player, 
-  canSeePlayer: boolean, 
-  visionConeAngle: number, 
+// Helper function to draw vision cone with proper obstacle occlusion
+// Used by both AI and player vision cones
+const drawVisionCone = (
+  ctx: CanvasRenderingContext2D,
+  entity: Player,
+  visionConeAngle: number,
   visionDistance: number,
   boxes: Box[] = [],
-  player?: Player
+  otherPlayers: Player[] = [],
+  fillColor: string,
+  strokeColor: string
 ) => {
-  if (aiPlayer.direction === 'none') return;
+  if (entity.direction === 'none') return;
   
   // Calculate the cone angle in radians
   const coneAngleRad = (visionConeAngle * Math.PI) / 180;
   
   // Use the rotation property directly to determine vision cone orientation
-  const baseAngle = aiPlayer.rotation || 0;
+  const baseAngle = entity.rotation || 0;
   
   // Calculate the start and end angles for the cone
   const startAngle = baseAngle - coneAngleRad / 2;
@@ -262,7 +265,7 @@ export const drawAiVisionCone = (
   
   // Prepare to draw the vision cone using rays
   ctx.beginPath();
-  ctx.moveTo(aiPlayer.x, aiPlayer.y);
+  ctx.moveTo(entity.x, entity.y);
   
   // Cast rays around the vision cone to create the polygon shape
   for (let i = 0; i <= rayCount; i++) {
@@ -277,51 +280,64 @@ export const drawAiVisionCone = (
     
     // Check intersection with each box and update rayLength if needed
     for (const box of boxes) {
-      const dist = rayBoxIntersection(aiPlayer.x, aiPlayer.y, dirX, dirY, box);
+      const dist = rayBoxIntersection(entity.x, entity.y, dirX, dirY, box);
       if (dist !== null && dist < rayLength) {
         rayLength = dist;
       }
     }
     
-    // Also check if player blocks the ray (if provided and not the target)
-    if (player && player.id !== aiPlayer.id) {
-      // Create a box representation of the player for intersection test
-      const playerBox: Box = {
-        ...player,
-        width: player.size * 2,
-        height: player.size * 2,
-        color: 'unused'
-      };
-      
-      const dist = rayBoxIntersection(aiPlayer.x, aiPlayer.y, dirX, dirY, playerBox);
-      if (dist !== null && dist < rayLength) {
-        rayLength = dist;
+    // Check intersection with other players
+    for (const otherPlayer of otherPlayers) {
+      if (otherPlayer.id !== entity.id) {
+        // Create a box representation of the player for intersection test
+        const playerBox = playerToBox(otherPlayer);
+        
+        const dist = rayBoxIntersection(entity.x, entity.y, dirX, dirY, playerBox);
+        if (dist !== null && dist < rayLength) {
+          rayLength = dist;
+        }
       }
     }
     
     // Calculate the endpoint of the ray
-    const endX = aiPlayer.x + dirX * rayLength;
-    const endY = aiPlayer.y + dirY * rayLength;
+    const endX = entity.x + dirX * rayLength;
+    const endY = entity.y + dirY * rayLength;
     
     // Draw line to the endpoint
     ctx.lineTo(endX, endY);
   }
   
-  // Close the path back to the AI player position
+  // Close the path back to the entity position
   ctx.closePath();
   
   // Fill the vision cone with a semi-transparent color
-  const fillColor = canSeePlayer ? 'rgba(255, 100, 100, 0.2)' : 'rgba(100, 150, 255, 0.2)';
   ctx.fillStyle = fillColor;
   ctx.fill();
   
   // Draw the vision cone border
-  ctx.strokeStyle = canSeePlayer ? 'rgba(255, 50, 50, 0.5)' : 'rgba(50, 100, 255, 0.5)';
+  ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 1;
   ctx.stroke();
   
   // Restore the context
   ctx.restore();
+};
+
+// Helper function to draw AI vision cone with proper obstacle occlusion
+export const drawAiVisionCone = (
+  ctx: CanvasRenderingContext2D, 
+  aiPlayer: Player, 
+  canSeePlayer: boolean, 
+  visionConeAngle: number, 
+  visionDistance: number,
+  boxes: Box[] = [],
+  player?: Player
+) => {
+  const fillColor = canSeePlayer ? 'rgba(255, 100, 100, 0.2)' : 'rgba(100, 150, 255, 0.2)';
+  const strokeColor = canSeePlayer ? 'rgba(255, 50, 50, 0.5)' : 'rgba(50, 100, 255, 0.5)';
+  const otherPlayers = player ? [player] : [];
+  
+  drawVisionCone(ctx, aiPlayer, visionConeAngle, visionDistance, boxes, otherPlayers, fillColor, strokeColor);
 };
 
 // Helper function to draw player's vision cone
@@ -333,77 +349,11 @@ export const drawPlayerVisionCone = (
   boxes: Box[] = [],
   otherPlayers: Player[] = []
 ) => {
-  if (player.direction === 'none') return;
+  // Player vision cone uses a consistent style
+  const fillColor = 'rgba(100, 150, 255, 0.15)';
+  const strokeColor = 'rgba(50, 100, 255, 0.4)';
   
-  // Calculate the cone angle in radians
-  const coneAngleRad = (visionConeAngle * Math.PI) / 180;
-  
-  // Use the rotation property directly to determine vision cone orientation
-  const baseAngle = player.rotation || 0;
-  
-  // Calculate the start and end angles for the cone
-  const startAngle = baseAngle - coneAngleRad / 2;
-  
-  // Number of rays to cast
-  const rayCount = 60; // Higher = better quality but lower performance
-  
-  // Save context state
-  ctx.save();
-  
-  // Prepare to draw the vision cone using rays
-  ctx.beginPath();
-  ctx.moveTo(player.x, player.y);
-  
-  // Cast rays around the vision cone to create the polygon shape
-  for (let i = 0; i <= rayCount; i++) {
-    const rayAngle = startAngle + (i / rayCount) * coneAngleRad;
-    
-    // Calculate ray direction vector (normalized)
-    const dirX = Math.cos(rayAngle);
-    const dirY = Math.sin(rayAngle);
-    
-    // Initialize rayLength to the vision distance
-    let rayLength = visionDistance;
-    
-    // Check intersection with each box and update rayLength if needed
-    for (const box of boxes) {
-      const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, box);
-      if (dist !== null && dist < rayLength) {
-        rayLength = dist;
-      }
-    }
-    
-    // Check intersection with other players (AI)
-    for (const otherPlayer of otherPlayers) {
-      if (otherPlayer.id !== player.id) {
-        // Create a box representation of the player for intersection test
-        const playerBox: Box = {
-          ...otherPlayer,
-          width: otherPlayer.size * 2,
-          height: otherPlayer.size * 2,
-          color: 'unused'
-        };
-        
-        const dist = rayBoxIntersection(player.x, player.y, dirX, dirY, playerBox);
-        if (dist !== null && dist < rayLength) {
-          rayLength = dist;
-        }
-      }
-    }
-    
-    // Calculate the endpoint of the ray
-    const endX = player.x + dirX * rayLength;
-    const endY = player.y + dirY * rayLength;
-    
-    // Draw line to the endpoint
-    ctx.lineTo(endX, endY);
-  }
-  
-  // Close the path back to the player position
-  ctx.closePath();
-  
-  // Return the path for later use
-  return ctx.isPointInPath;
+  drawVisionCone(ctx, player, visionConeAngle, visionDistance, boxes, otherPlayers, fillColor, strokeColor);
 };
 
 // Initialize sprite system
