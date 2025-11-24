@@ -39,9 +39,9 @@ export const normalizeAngleDifference = (angleDiff: number): number => {
  * @returns The normalized rotation angle
  */
 export const normalizeRotation = (rotation: number): number => {
-  let normalized = rotation;
-  if (normalized < 0) normalized += Math.PI * 2;
-  if (normalized >= Math.PI * 2) normalized -= Math.PI * 2;
+  const twoPi = Math.PI * 2;
+  let normalized = rotation % twoPi;
+  if (normalized < 0) normalized += twoPi;
   return normalized;
 };
 
@@ -55,7 +55,7 @@ export const playerToBox = (player: Player): Box => {
     ...player,
     width: player.size * 2,
     height: player.size * 2,
-    color: 'unused'
+    color: 'collision-box' // Used for collision detection only, not rendered
   };
 };
 

@@ -246,8 +246,6 @@ const drawVisionCone = (
   fillColor: string,
   strokeColor: string
 ) => {
-  if (entity.direction === 'none') return;
-  
   // Calculate the cone angle in radians
   const coneAngleRad = (visionConeAngle * Math.PI) / 180;
   
