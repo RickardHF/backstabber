@@ -1,6 +1,14 @@
 import { Player, Direction, Box, AIVision } from './types';
 import { calculateNonCollidingPosition } from './collision';
 import { MAP_CONFIG } from './MapLayout';
+import { 
+  calculateAngleTo, 
+  calculateDistance, 
+  isWithinVisionCone, 
+  normalizeAngleDifference,
+  normalizeRotation,
+  rotationToDirection 
+} from './utils';
 
 // Function to check if player is behind an AI bot (outside of vision cone)
 export const isPlayerBehindAI = (
@@ -8,12 +16,8 @@ export const isPlayerBehindAI = (
   aiPlayer: Player,
   aiVision: AIVision
 ): boolean => {
-  // Calculate vector from AI to player
-  const dx = player.x - aiPlayer.x;
-  const dy = player.y - aiPlayer.y;
-  
   // Calculate distance between AI and player
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  const distance = calculateDistance(aiPlayer.x, aiPlayer.y, player.x, player.y);
   
   // Player must be close enough to the AI to backstab
   const backstabDistance = aiPlayer.size * 2.5;
@@ -22,25 +26,13 @@ export const isPlayerBehindAI = (
   }
   
   // Calculate the angle to the player in radians
-  const angleToPlayer = Math.atan2(dy, dx);
+  const angleToPlayer = calculateAngleTo(aiPlayer.x, aiPlayer.y, player.x, player.y);
   
   // Get the AI's rotation
   const rotation = aiPlayer.rotation || 0;
   
-  // Calculate the difference between the two angles
-  let angleDiff = Math.abs(angleToPlayer - rotation);
-  // Ensure the angle difference is between 0 and PI
-  if (angleDiff > Math.PI) {
-    angleDiff = 2 * Math.PI - angleDiff;
-  }
-  
-  // Convert vision cone angle from degrees to radians for comparison
-  const visionConeAngleRad = (aiVision.visionConeAngle * Math.PI) / 180;
-  
   // Check if player is outside the vision cone
-  const isOutsideCone = angleDiff > visionConeAngleRad / 2;
-  
-  return isOutsideCone;
+  return !isWithinVisionCone(angleToPlayer, rotation, aiVision.visionConeAngle);
 };
 
 // Interface for player update result, including information about enemy collisions
@@ -91,19 +83,14 @@ export const updatePlayer = (
     const targetRotation = Math.atan2(joystickInput.y, joystickInput.x);
     
     // Smoothly rotate towards the target
-    let rotationDiff = targetRotation - newRotation;
-    
-    // Normalize the rotation difference to [-π, π]
-    while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
-    while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+    const rotationDiff = normalizeAngleDifference(targetRotation - newRotation);
     
     // Apply rotation with a smoothing factor
     const rotationSmoothingFactor = 0.2;
   newRotation += rotationDiff * rotationSmoothingFactor; // already scaled smoothing
     
     // Normalize rotation to [0, 2π]
-    if (newRotation < 0) newRotation += Math.PI * 2;
-    if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
+    newRotation = normalizeRotation(newRotation);
     
     // Move in the direction of the joystick
     const moveSpeed = Math.sqrt(joystickInput.x * joystickInput.x + joystickInput.y * joystickInput.y);
@@ -114,15 +101,7 @@ export const updatePlayer = (
     }
     
     // Update direction based on rotation angle
-    if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-      newDirection = 'right';
-    } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-      newDirection = 'down';
-    } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-      newDirection = 'left';
-    } else {
-      newDirection = 'up';
-    }
+    newDirection = rotationToDirection(newRotation);
   }
 
   // Handle keyboard input (only if no joystick input)
@@ -130,35 +109,15 @@ export const updatePlayer = (
     // Rotate left with 'a' key
     if (keysPressed['a']) {
   newRotation -= rotationDelta;
-      if (newRotation < 0) newRotation += Math.PI * 2;
-      
-      // Update direction based on rotation angle
-      if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-        newDirection = 'right';
-      } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-        newDirection = 'down';
-      } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-        newDirection = 'left';
-      } else {
-        newDirection = 'up';
-      }
+      newRotation = normalizeRotation(newRotation);
+      newDirection = rotationToDirection(newRotation);
     }
     
     // Rotate right with 'd' key
     if (keysPressed['d']) {
   newRotation += rotationDelta;
-      if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
-      
-      // Update direction based on rotation angle
-      if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-        newDirection = 'right';
-      } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-        newDirection = 'down';
-      } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-        newDirection = 'left';
-      } else {
-        newDirection = 'up';
-      }
+      newRotation = normalizeRotation(newRotation);
+      newDirection = rotationToDirection(newRotation);
     }
     
     // Move forward with 'w' key
@@ -178,15 +137,7 @@ export const updatePlayer = (
   // If we moved forward/backward without changing rotation (so direction still 'none'),
   // derive a cardinal direction from current rotation so walking animation triggers.
   if (attemptedMove && newDirection === 'none') {
-    if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-      newDirection = 'right';
-    } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-      newDirection = 'down';
-    } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-      newDirection = 'left';
-    } else {
-      newDirection = 'up';
-    }
+    newDirection = rotationToDirection(newRotation);
   }
   // Keep player within world (map) bounds (independent of viewport size)
   if (canvas) {

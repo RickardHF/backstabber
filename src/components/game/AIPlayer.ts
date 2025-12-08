@@ -1,6 +1,15 @@
 import { Player, AIVision, Box } from './types';
 import { calculateNonCollidingPosition } from './collision';
 import { MAP_CONFIG } from './MapLayout';
+import { 
+  calculateAngleTo, 
+  calculateDistance, 
+  isWithinVisionCone, 
+  normalizeAngleDifference,
+  normalizeRotation,
+  rotationToDirection,
+  playerToBox 
+} from './utils';
 
 // Check if a line intersects with a box
 const lineIntersectsBox = (
@@ -56,12 +65,8 @@ export const checkAiVision = (
   boxes: Box[] = [],
   otherPlayer?: Player // Can optionally check if another player blocks the view
 ): AIVision => {
-  // Calculate vector from AI to player
-  const dx = player.x - aiPlayer.x;
-  const dy = player.y - aiPlayer.y;
-  
   // Calculate distance between AI and player
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  const distance = calculateDistance(aiPlayer.x, aiPlayer.y, player.x, player.y);
   
   // If player is too far, AI can't see it
   if (distance > aiVision.visionDistance) {
@@ -72,20 +77,10 @@ export const checkAiVision = (
   const rotation = aiPlayer.rotation || 0;
   
   // Calculate the angle to the player in radians
-  const angleToPlayer = Math.atan2(dy, dx);
-  
-  // Calculate the difference between the two angles
-  let angleDiff = Math.abs(angleToPlayer - rotation);
-  // Ensure the angle difference is between 0 and PI
-  if (angleDiff > Math.PI) {
-    angleDiff = 2 * Math.PI - angleDiff;
-  }
-  
-  // Convert vision cone angle from degrees to radians for comparison
-  const visionConeAngleRad = (aiVision.visionConeAngle * Math.PI) / 180;
+  const angleToPlayer = calculateAngleTo(aiPlayer.x, aiPlayer.y, player.x, player.y);
   
   // Check if player is within the vision cone
-  const isInCone = angleDiff <= visionConeAngleRad / 2;
+  const isInCone = isWithinVisionCone(angleToPlayer, rotation, aiVision.visionConeAngle);
   
   // If not in cone, definitely can't see
   if (!isInCone) {
@@ -102,12 +97,7 @@ export const checkAiVision = (
   // Check if line of sight is blocked by another player (if provided)
   if (otherPlayer && otherPlayer.id !== player.id && otherPlayer.id !== aiPlayer.id) {
     // Approximate the other player as a square for intersection test
-    const playerBox: Box = {
-      ...otherPlayer,
-      width: otherPlayer.size * 2,
-      height: otherPlayer.size * 2,
-      color: 'unused'
-    };
+    const playerBox = playerToBox(otherPlayer);
     
     if (lineIntersectsBox(aiPlayer.x, aiPlayer.y, player.x, player.y, playerBox)) {
       return { ...aiVision, canSeePlayer: false };
@@ -140,31 +130,17 @@ export const updateAiPlayer = (
   const moveDeltaBase = aiPlayer.speed * deltaTimeSeconds; // pixels this frame
   
   if (updatedAiVision.canSeePlayer) {
-    // If AI can see player, calculate the angle to the player
-    const dx = player.x - aiPlayer.x;
-    const dy = player.y - aiPlayer.y;
-    
     // Calculate distance to player
-    const distanceToPlayer = Math.sqrt(dx * dx + dy * dy);
+    const distanceToPlayer = calculateDistance(aiPlayer.x, aiPlayer.y, player.x, player.y);
     
     // Calculate angle to player
-    const angleToPlayer = Math.atan2(dy, dx);
+    const angleToPlayer = calculateAngleTo(aiPlayer.x, aiPlayer.y, player.x, player.y);
     
     // If AI is close enough to the player, stop moving but keep facing the player
     if (distanceToPlayer < aiPlayer.size + player.size) {
       // Stop moving but track the player by rotating towards them
       newRotation = angleToPlayer;
-      
-      // Update direction based on rotation angle
-      if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-        newDirection = 'right';
-      } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-        newDirection = 'down';
-      } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-        newDirection = 'left';
-      } else {
-        newDirection = 'up';
-      }
+      newDirection = rotationToDirection(newRotation);
       
       // Return early with updated rotation but same position
       return {
@@ -179,9 +155,7 @@ export const updateAiPlayer = (
     }
     
     // Calculate rotation difference
-    let rotationDiff = angleToPlayer - newRotation;
-    if (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
-    if (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+    const rotationDiff = normalizeAngleDifference(angleToPlayer - newRotation);
     
     // Gradually rotate towards the player
     if (Math.abs(rotationDiff) > 0.1) {
@@ -195,19 +169,10 @@ export const updateAiPlayer = (
     }
     
     // Normalize rotation to 0-2π range
-    if (newRotation < 0) newRotation += Math.PI * 2;
-    if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
+    newRotation = normalizeRotation(newRotation);
     
     // Update direction based on rotation angle
-    if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-      newDirection = 'right';
-    } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-      newDirection = 'down';
-    } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-      newDirection = 'left';
-    } else {
-      newDirection = 'up';
-    }
+    newDirection = rotationToDirection(newRotation);
     
     // Move forward in the direction we're facing
   newX += Math.cos(newRotation) * moveDeltaBase;
@@ -233,18 +198,8 @@ export const updateAiPlayer = (
     if (wouldHitWall) {
       // Rotate 180 degrees to move away from wall
       newRotation += Math.PI;
-      if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
-      
-      // Update direction based on new rotation angle
-      if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-        newDirection = 'right';
-      } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-        newDirection = 'down';
-      } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-        newDirection = 'left';
-      } else {
-        newDirection = 'up';
-      }
+      newRotation = normalizeRotation(newRotation);
+      newDirection = rotationToDirection(newRotation);
     }
     
     // Ensure the AI stays within bounds regardless
@@ -280,18 +235,8 @@ export const updateAiPlayer = (
   if (hitPlayer && !isPlayerCollision) {
     // Add a random angle change between 90° and 270° (π/2 and 3π/2)
     newRotation += Math.PI / 2 + Math.random() * Math.PI;
-    if (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
-    
-    // Update direction based on new rotation angle
-    if (newRotation >= 7 * Math.PI / 4 || newRotation < Math.PI / 4) {
-      newDirection = 'right';
-    } else if (newRotation >= Math.PI / 4 && newRotation < 3 * Math.PI / 4) {
-      newDirection = 'down';
-    } else if (newRotation >= 3 * Math.PI / 4 && newRotation < 5 * Math.PI / 4) {
-      newDirection = 'left';
-    } else {
-      newDirection = 'up';
-    }
+    newRotation = normalizeRotation(newRotation);
+    newDirection = rotationToDirection(newRotation);
   }
   
   return {
