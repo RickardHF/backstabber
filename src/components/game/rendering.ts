@@ -148,7 +148,6 @@ const loadItemSprite = () => {
 };
 
 export const drawItem = (ctx: CanvasRenderingContext2D, item: Item) => {
-  console.log('Drawing item at', item.x, item.y);
   if (!itemSpriteLoaded) {
     loadItemSprite();
     return; // Don't draw until loaded

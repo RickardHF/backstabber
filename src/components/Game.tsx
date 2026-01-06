@@ -141,7 +141,6 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             type: 'speedPotion',
             spriteIndex: 0 // First sprite in items.png
           };
-          console.log('Scheduling item drop at', aiPlayer.x, aiPlayer.y);
           setPendingItems(prev => [...prev, { item: newItem, spawnTime: performance.now() + 1500 }]);
         }
         
@@ -300,10 +299,6 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     const restartSound = new Audio('/death-sound.mp3');
     restartSound.volume = 0.3;
     restartSound.play().catch(e => console.log('Could not play restart sound', e));
-    
-    // Start grace period
-    setGraceActive(true);
-    setTimeout(() => setGraceActive(false), 3000); // 3 seconds grace period
   }, [deathAnimation.animationFrameId, aiManagerConfig]);  // Initialize map layout and AI Manager when component mounts
   useEffect(() => {
     // Initial one-time map load & AI manager creation. Previous implementation depended on aiManagerConfig
@@ -648,9 +643,6 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         ctx.closePath();
         ctx.restore();
       }
-      if (!graceActive && !p.isDead && p.vision) {
-        // Blind spot indicator removed
-      }
     }
     frameCountRef.current += 1;
     const nowPerf = performance.now();
@@ -719,7 +711,6 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             const distance = Math.sqrt(dx * dx + dy * dy);
             if (distance < (playerRef.current.size + item.size) / 2) {
               // Pickup item
-              console.log('Picking up item', item.type);
               if (item.type === 'speedPotion') {
                 setPlayer(prevPlayer => {
                   // Check if speed boost is already active
@@ -782,7 +773,6 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
         const readyItems = prevPending.filter(pending => pending.spawnTime <= now);
         if (readyItems.length > 0) {
           setItems(prevItems => [...prevItems, ...readyItems.map(p => p.item)]);
-          console.log('Spawning', readyItems.length, 'items');
         }
         return prevPending.filter(pending => pending.spawnTime > now);
       });

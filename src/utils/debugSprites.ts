@@ -58,18 +58,3 @@ export const debugSpriteLoading = async () => {
   
   return null;
 };
-
-export const testSpriteLoad = (url: string): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      console.log(`✅ Sprite loaded successfully: ${url}`);
-      resolve(true);
-    };
-    img.onerror = (error) => {
-      console.log(`❌ Sprite failed to load: ${url}`, error);
-      resolve(false);
-    };
-    img.src = url;
-  });
-};

@@ -1,7 +1,7 @@
 import { CollisionObject, Player, Box } from './types';
 
-// General collision detection function that checks if two objects collide
-export const checkCollision = (obj1: CollisionObject, obj2: CollisionObject): boolean => {
+// Internal collision detection function that checks if two objects collide
+const checkCollision = (obj1: CollisionObject, obj2: CollisionObject): boolean => {
   const bounds1 = obj1.getBounds();
   const bounds2 = obj2.getBounds();
 
