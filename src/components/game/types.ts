@@ -39,7 +39,7 @@ export interface Player extends GameObject {
 
 // Player effect interface for temporary buffs/debuffs
 export interface PlayerEffect {
-  type: 'speedBoost';
+  type: 'speedBoost' | 'greenFlame';
   duration: number; // Remaining duration in seconds
   multiplier: number; // e.g., 1.2 for 20% increase
 }
@@ -69,7 +69,7 @@ export interface Box extends GameObject {
 
 // Item interface for collectible items
 export interface Item extends GameObject {
-  type: 'speedPotion';
+  type: 'speedPotion' | 'greenFlame';
   spriteIndex: number; // Index in the sprite sheet
 }
 
