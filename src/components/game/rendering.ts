@@ -146,6 +146,10 @@ const loadItemSprite = () => {
     itemSpriteSheet.src = '/sprites/items.png';
     itemSpriteSheet.onload = () => {
       itemSpriteLoaded = true;
+      itemSpriteLoading = false;
+    };
+    itemSpriteSheet.onerror = () => {
+      itemSpriteLoading = false;
     };
   }
 };
