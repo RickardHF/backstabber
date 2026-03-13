@@ -38,6 +38,10 @@ export class AIManager {
       if (deltaTimeSeconds > 0.25) deltaTimeSeconds = 0.25; // max 250ms
     }
     this.lastUpdateTime = currentTime;
+
+    // Check if the player has green flame effect (enemies should flee)
+    const isPlayerFiery = player.effects?.some(e => e.type === 'greenFlame') ?? false;
+
     // Check if we need to spawn a new AI player
   const effectiveMax = MAP_CONFIG.maxBots ?? this.config.maxBots;
   if (this.config.enabled && 
@@ -68,7 +72,8 @@ export class AIManager {
         canvas,
         boxes,
         this.aiPlayers.filter(p => p.id !== aiPlayer.id && !p.isDead),
-        deltaTimeSeconds
+        deltaTimeSeconds,
+        isPlayerFiery
       );
       this.aiPlayers[i] = updatedAiPlayer;
       this.aiVisions[i] = updatedAiVision;

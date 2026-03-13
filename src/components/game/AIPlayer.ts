@@ -116,7 +116,8 @@ export const updateAiPlayer = (
   canvas: HTMLCanvasElement | null,
   boxes: Box[] = [],
   otherAIPlayers: Player[] = [],
-  deltaTimeSeconds: number = 1 / 60
+  deltaTimeSeconds: number = 1 / 60,
+  isPlayerFiery: boolean = false
 ): { updatedAiPlayer: Player, updatedAiVision: AIVision } => {
   // First, check if AI can see the player, passing in the boxes to check for line-of-sight
   const updatedAiVision = checkAiVision(aiPlayer, player, aiVision, boxes, otherAIPlayers.length > 0 ? otherAIPlayers[0] : undefined);
@@ -129,7 +130,30 @@ export const updateAiPlayer = (
   const rotationDelta = rotationSpeed * deltaTimeSeconds;
   const moveDeltaBase = aiPlayer.speed * deltaTimeSeconds; // pixels this frame
   
-  if (updatedAiVision.canSeePlayer) {
+  if (updatedAiVision.canSeePlayer && isPlayerFiery) {
+    // Flee: move away from the player
+    const angleToPlayer = calculateAngleTo(aiPlayer.x, aiPlayer.y, player.x, player.y);
+    const angleAwayFromPlayer = angleToPlayer + Math.PI;
+
+    // Rotate toward the flee direction
+    const rotationDiff = normalizeAngleDifference(angleAwayFromPlayer - newRotation);
+    if (Math.abs(rotationDiff) > 0.1) {
+      if (rotationDiff > 0) {
+        newRotation += rotationDelta;
+      } else {
+        newRotation -= rotationDelta;
+      }
+    } else {
+      newRotation = angleAwayFromPlayer;
+    }
+    newRotation = normalizeRotation(newRotation);
+    newDirection = rotationToDirection(newRotation);
+
+    // Move forward (away from player) at a slightly faster panic speed
+    const fleeSpeed = moveDeltaBase * 1.3;
+    newX += Math.cos(newRotation) * fleeSpeed;
+    newY += Math.sin(newRotation) * fleeSpeed;
+  } else if (updatedAiVision.canSeePlayer) {
     // Calculate distance to player
     const distanceToPlayer = calculateDistance(aiPlayer.x, aiPlayer.y, player.x, player.y);
     

@@ -468,6 +468,21 @@ export const drawPlayer = (ctx: CanvasRenderingContext2D, p: Player, useSprites:
       }
   sprite.render(ctx, p, deltaTime, p.isAI || false);
   // Direction arrow intentionally removed
+
+      // Draw green flame aura if effect is active (player only)
+      if (!p.isAI && p.effects?.some(e => e.type === 'greenFlame')) {
+        ctx.save();
+        const flameRadius = p.size * 2;
+        const gradient = ctx.createRadialGradient(p.x, p.y, p.size * 0.5, p.x, p.y, flameRadius);
+        gradient.addColorStop(0, 'rgba(0, 255, 80, 0.35)');
+        gradient.addColorStop(0.5, 'rgba(0, 200, 50, 0.15)');
+        gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, flameRadius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        ctx.restore();
+      }
       
       return; // Skip the old circle rendering
     }

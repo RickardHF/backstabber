@@ -117,17 +117,40 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
     // Get all active AI bots
     const aiPlayers = aiManagerRef.current.getAIPlayers();
     
+    // Check if player has green flame effect (one-hit from any direction)
+    const hasGreenFlame = player.effects?.some(e => e.type === 'greenFlame');
+    
     // Check each AI bot to see if player can backstab it
     for (const aiPlayer of aiPlayers) {
       if (aiPlayer.isDead) continue; // skip corpses
       const aiVision = aiManagerRef.current.getAIVision(aiPlayer.id);
-      
-      if (aiVision && isPlayerBehindAI(player, aiPlayer, aiVision)) {
+
+      // Green flame: defeat from any direction if close enough
+      if (hasGreenFlame) {
+        const dist = Math.sqrt((player.x - aiPlayer.x) ** 2 + (player.y - aiPlayer.y) ** 2);
+        if (dist < player.size + aiPlayer.size + 5) {
+          aiManagerRef.current.markAIDead(aiPlayer.id);
+          setDefeatedEnemies(prev => prev + 1);
+          break;
+        }
+      } else if (aiVision && isPlayerBehindAI(player, aiPlayer, aiVision)) {
         // Player is behind AI and within backstabbing range
         aiManagerRef.current.markAIDead(aiPlayer.id);
         
-        // Occasionally drop an item (e.g., 100% chance for testing)
+        // Drop an item on backstab kill
         if (Math.random() < 1.0) {
+          const dropRoll = Math.random();
+          let itemType: 'speedPotion' | 'greenFlame' = 'speedPotion';
+          let spriteIndex = 0;
+
+          if (dropRoll < 0.04) {          // ~4% chance for Emerald Inferno
+            itemType = 'greenFlame';
+            spriteIndex = 1;              // second sprite in items.png
+          } else {                        // remaining chance for speed potion
+            itemType = 'speedPotion';
+            spriteIndex = 0;
+          }
+
           const newItem: Item = {
             id: `item_${Date.now()}_${Math.random()}`,
             x: aiPlayer.x,
@@ -138,8 +161,8 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             pulse: 0,
             rotation: 0,
             rotationSpeed: 0,
-            type: 'speedPotion',
-            spriteIndex: 0 // First sprite in items.png
+            type: itemType,
+            spriteIndex: spriteIndex
           };
           setPendingItems(prev => [...prev, { item: newItem, spawnTime: performance.now() + 1500 }]);
         }
@@ -738,6 +761,27 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
                   }
                 });
               }
+              if (item.type === 'greenFlame') {
+                setPlayer(prevPlayer => {
+                  const hasGreenFlame = prevPlayer.effects?.some(e => e.type === 'greenFlame');
+                  if (hasGreenFlame) {
+                    return {
+                      ...prevPlayer,
+                      effects: prevPlayer.effects?.map(e =>
+                        e.type === 'greenFlame' ? { ...e, duration: 10 } : e
+                      )
+                    };
+                  }
+                  return {
+                    ...prevPlayer,
+                    effects: [...(prevPlayer.effects || []), {
+                      type: 'greenFlame' as const,
+                      duration: 10,
+                      multiplier: 1 // not used for speed, kept for interface compat
+                    }]
+                  };
+                });
+              }
               return false; // Remove item
             }
             return true; // Keep item
@@ -870,8 +914,8 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-4">
             {activeEffects.map((effect, index) => (
               <div key={index} className="flex items-center gap-2 bg-black/70 px-3 py-1 rounded border border-[var(--panel-border)]">
-                <span className="font-pixel text-[10px] tracking-wide text-[var(--gold)]">
-                  SPEED POTION
+                <span className="font-pixel text-[10px] tracking-wide" style={{ color: effect.type === 'greenFlame' ? '#00ff50' : 'var(--gold)' }}>
+                  {effect.type === 'greenFlame' ? 'EMERALD INFERNO' : 'SPEED POTION'}
                 </span>
                 <div className="flex items-center gap-1">
                   <div className="w-12 h-2 bg-[var(--background-alt)] border border-[var(--panel-border)] rounded">
