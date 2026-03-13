@@ -136,10 +136,12 @@ export const drawBox = (ctx: CanvasRenderingContext2D, box: Box) => {
 // Helper function to draw items
 let itemSpriteSheet: HTMLImageElement | null = null;
 let itemSpriteLoaded = false;
+let itemSpriteLoading = false;
 let itemAnimationTime = 0;
 
 const loadItemSprite = () => {
-  if (!itemSpriteLoaded) {
+  if (!itemSpriteLoaded && !itemSpriteLoading) {
+    itemSpriteLoading = true;
     itemSpriteSheet = new Image();
     itemSpriteSheet.src = '/sprites/items.png';
     itemSpriteSheet.onload = () => {
@@ -162,14 +164,19 @@ export const drawItem = (ctx: CanvasRenderingContext2D, item: Item) => {
   // Bobbing effect: move up and down
   const bobOffset = Math.sin(itemAnimationTime * 0.005) * 3; // Adjust speed and amplitude
 
-  // Draw glow effect
+  // Draw glow effect with item-type-specific color
   const glowRadius = item.size * 1.5;
   const gradient = ctx.createRadialGradient(
     item.x, item.y + bobOffset, 0,
     item.x, item.y + bobOffset, glowRadius
   );
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)'); // White glow, fainter
-  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  if (item.type === 'greenFlame') {
+    gradient.addColorStop(0, 'rgba(0, 255, 80, 0.6)');
+    gradient.addColorStop(1, 'rgba(0, 255, 80, 0)');
+  } else {
+    gradient.addColorStop(0, 'rgba(100, 180, 255, 0.6)');
+    gradient.addColorStop(1, 'rgba(100, 180, 255, 0)');
+  }
 
   ctx.beginPath();
   ctx.arc(item.x, item.y + bobOffset, glowRadius, 0, Math.PI * 2);
