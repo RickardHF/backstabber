@@ -143,7 +143,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
           let itemType: 'speedPotion' | 'greenFlame' = 'speedPotion';
           let spriteIndex = 0;
 
-          if (dropRoll < 0.04) {          // ~4% chance for Emerald Inferno
+          if (dropRoll < 0.2) {           // ~20% chance for Emerald Inferno
             itemType = 'greenFlame';
             spriteIndex = 1;              // second sprite in items.png
           } else {                        // remaining chance for speed potion
@@ -157,7 +157,7 @@ const Game: React.FC<GameProps> = ({ onExitToMenu }) => {
             y: aiPlayer.y,
             direction: 'none',
             speed: 0,
-            size: 16,
+            size: 32,
             pulse: 0,
             rotation: 0,
             rotationSpeed: 0,
