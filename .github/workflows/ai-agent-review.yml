@@ -10,17 +10,15 @@
 #
 # Trigger methods:
 #   1. workflow_dispatch: Manual trigger with issue number and AI tool selection
-#   2. projects_v2_item: Auto-trigger when issue status changes to "For Review"
-#      in the linked GitHub Project
+#   2. issues labeled: Auto-trigger when the "For Review" label is added
 #
 # Required secrets (depending on AI tool):
 #   - COPILOT_GITHUB_TOKEN: For Copilot CLI authentication
 #   - ANTHROPIC_API_KEY: For Claude Code CLI authentication
 #   - OPENAI_API_KEY: For Codex CLI authentication
-#   - CROSS_REPO_TOKEN: For resolving project item details (projects_v2_item trigger)
 #
 # Optional repository variable:
-#   - AI_TOOL: Default AI tool when triggered by project events (copilot|claude|codex)
+#   - AI_TOOL: Default AI tool when triggered by label events (copilot|claude|codex)
 
 name: AI Agent Review
 
@@ -40,8 +38,8 @@ on:
           - claude
           - codex
         default: copilot
-  projects_v2_item:
-    types: [edited]
+  issues:
+    types: [labeled]
 
 permissions:
   contents: write
@@ -49,111 +47,15 @@ permissions:
   pull-requests: write
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Job 1: Determine whether to run and resolve issue details
-  # ---------------------------------------------------------------------------
-  check:
-    name: Resolve trigger
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.result.outputs.should_run }}
-      issue_number: ${{ steps.result.outputs.issue_number }}
-      ai_tool: ${{ steps.result.outputs.ai_tool }}
-    steps:
-      - name: Resolve from workflow_dispatch
-        if: github.event_name == 'workflow_dispatch'
-        id: dispatch
-        run: |
-          echo "should_run=true" >> $GITHUB_OUTPUT
-          echo "issue_number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
-          echo "ai_tool=${{ inputs.ai_tool }}" >> $GITHUB_OUTPUT
-
-      - name: Resolve from project event
-        if: github.event_name == 'projects_v2_item'
-        id: project
-        env:
-          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
-        run: |
-          # Only handle Issues (not PRs or drafts)
-          CONTENT_TYPE="${{ github.event.projects_v2_item.content_type }}"
-          if [ "$CONTENT_TYPE" != "Issue" ]; then
-            echo "Content type is $CONTENT_TYPE, not Issue. Skipping."
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Resolve the issue from the project item's content node ID
-          CONTENT_NODE_ID="${{ github.event.projects_v2_item.content_node_id }}"
-          ISSUE_DATA=$(gh api graphql -f query='
-            query($nodeId: ID!) {
-              node(id: $nodeId) {
-                ... on Issue {
-                  number
-                  repository {
-                    name
-                    owner { login }
-                  }
-                }
-              }
-            }
-          ' -f nodeId="$CONTENT_NODE_ID")
-
-          REPO_NAME=$(echo "$ISSUE_DATA" | jq -r '.data.node.repository.name')
-          if [ "$REPO_NAME" != "${{ github.event.repository.name }}" ]; then
-            echo "Issue is in $REPO_NAME, not ${{ github.event.repository.name }}. Skipping."
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Check that the project item status is "For Review"
-          ITEM_NODE_ID="${{ github.event.projects_v2_item.node_id }}"
-          STATUS=$(gh api graphql -f query='
-            query($itemId: ID!) {
-              node(id: $itemId) {
-                ... on ProjectV2Item {
-                  fieldValueByName(name: "Status") {
-                    ... on ProjectV2ItemFieldSingleSelectValue { name }
-                  }
-                }
-              }
-            }
-          ' -f itemId="$ITEM_NODE_ID" --jq '.data.node.fieldValueByName.name')
-
-          if [ "$STATUS" != "For Review" ]; then
-            echo "Status is '$STATUS', not 'For Review'. Skipping."
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.data.node.number')
-          echo "should_run=true" >> $GITHUB_OUTPUT
-          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
-          echo "ai_tool=${{ vars.AI_TOOL || 'copilot' }}" >> $GITHUB_OUTPUT
-
-      - name: Set outputs
-        id: result
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "should_run=${{ steps.dispatch.outputs.should_run }}" >> $GITHUB_OUTPUT
-            echo "issue_number=${{ steps.dispatch.outputs.issue_number }}" >> $GITHUB_OUTPUT
-            echo "ai_tool=${{ steps.dispatch.outputs.ai_tool }}" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=${{ steps.project.outputs.should_run }}" >> $GITHUB_OUTPUT
-            echo "issue_number=${{ steps.project.outputs.issue_number }}" >> $GITHUB_OUTPUT
-            echo "ai_tool=${{ steps.project.outputs.ai_tool }}" >> $GITHUB_OUTPUT
-          fi
-
-  # ---------------------------------------------------------------------------
-  # Job 2: Run the AI review agent
-  # ---------------------------------------------------------------------------
   agent-review:
     name: Run AI Review Agent
-    needs: check
-    if: needs.check.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'For Review')
     env:
-      ISSUE_NUMBER: ${{ needs.check.outputs.issue_number }}
-      AI_TOOL: ${{ needs.check.outputs.ai_tool }}
+      ISSUE_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
+      AI_TOOL: ${{ github.event_name == 'workflow_dispatch' && inputs.ai_tool || vars.AI_TOOL || 'copilot' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
