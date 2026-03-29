@@ -1,0 +1,29 @@
+name: "Copilot Setup Steps"
+
+# Environment setup for GitHub Copilot coding agent.
+# Installs CLI tools and skills so the Copilot agent can use them.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+
+      - name: Install Playwright CLI
+        run: |
+          npm install -g @playwright/cli@latest
+          npx playwright install --with-deps chromium
+
+      - name: Install Playwright CLI skills
+        run: playwright-cli install --skills
