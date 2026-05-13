@@ -9,13 +9,17 @@
 #   1. workflow_dispatch: Manual trigger with issue number and AI tool selection
 #   2. issues labeled: Auto-trigger when the "For Agent Work" label is added
 #
-# Required secrets (depending on AI tool):
-#   - COPILOT_GITHUB_TOKEN: For Copilot CLI authentication
+# Required secrets:
+#   - GH_PAT: A Personal Access Token for gh CLI (triggers cross-workflow label events)
+#   - COPILOT_GITHUB_TOKEN: For Copilot CLI authentication (can be same as GH_PAT)
 #   - ANTHROPIC_API_KEY: For Claude Code CLI authentication
 #   - OPENAI_API_KEY: For Codex CLI authentication
 #
 # Optional repository variable:
 #   - AI_TOOL: Default AI tool when triggered by label events (copilot|claude|codex)
+#
+# IMPORTANT: gh CLI must authenticate with a PAT (not GITHUB_TOKEN) so that
+# label changes (e.g. adding "For Review") trigger the ai-agent-review workflow.
 
 name: AI Agent Work
 
@@ -53,26 +57,20 @@ jobs:
     env:
       ISSUE_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
       AI_TOOL: ${{ github.event_name == 'workflow_dispatch' && inputs.ai_tool || vars.AI_TOOL || 'copilot' }}
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
 
-      - name: Get issue details
-        id: issue
+      # --- Authenticate gh CLI with PAT (required for cross-workflow triggers) ---
+      - name: Authenticate GitHub CLI with PAT
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT || secrets.COPILOT_GITHUB_TOKEN }}
         run: |
-          TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
-          echo "title=$TITLE" >> $GITHUB_OUTPUT
-          BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
-          {
-            echo "body<<ISSUE_BODY_EOF"
-            echo "$BODY"
-            echo "ISSUE_BODY_EOF"
-          } >> $GITHUB_OUTPUT
+          echo "$GH_PAT" | gh auth login --with-token
 
       # --- Install selected AI tool ---
       - name: Install Copilot CLI
@@ -115,38 +113,36 @@ jobs:
             echo "SKILLS_EOF"
           } >> $GITHUB_OUTPUT
 
-      # --- Authenticate & Run: Copilot ---
-      - name: Authenticate for Copilot
-        if: env.AI_TOOL == 'copilot'
-        run: |
-          umask 177
-          printf '%s' "${{ secrets.COPILOT_GITHUB_TOKEN }}" > /tmp/copilot_pat.txt
-          gh auth login --with-token < /tmp/copilot_pat.txt
-          rm -f /tmp/copilot_pat.txt
-
+      # --- Run: Copilot ---
       - name: Run Copilot Agent
         if: env.AI_TOOL == 'copilot'
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           copilot -p "
           Work on the following issue in this repository.
 
-          ## Issue #${ISSUE_NUMBER}: ${{ steps.issue.outputs.title }}
+          ## Issue #${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
 
-          ${{ steps.issue.outputs.body }}
+          Use the gh cli tool to interact with GitHub. 
+
+          Perform any neccesary code changes in a feature branch, but if there is already a feature branch for this issue, use that one instead. 
+          
+          When done, create a pull request if not already created.
+
+          When done label the issue 'For Review' and remove the 'For Agent Work' label.
+
           " \
             --model claude-opus-4.6 \
-            --allow-tool='shell' \
-            --allow-tool='write' \
-            --allow-tool='read' \
-            --allow-tool='url(github.com)' \
-            --enable-all-github-mcp-tools \
+            --allow-all-tools \
+            --allow-all-paths \
+            --allow-all-urls \
             --no-ask-user \
             --autopilot
 
-      # --- Authenticate & Run: Claude ---
+      # --- Run: Claude ---
       - name: Run Claude Agent
         if: env.AI_TOOL == 'claude'
         env:
@@ -157,13 +153,19 @@ jobs:
 
           Work on the following issue in this repository.
 
-          ## Issue #${ISSUE_NUMBER}: ${{ steps.issue.outputs.title }}
+          ## Issue #${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
 
-          ${{ steps.issue.outputs.body }}
+          Use the gh cli tool to interact with GitHub. 
+
+          Perform any neccesary code changes in a feature branch, but if there is already a feature branch for this issue, use that one instead. 
+          
+          When done, create a pull request if not already created.
+
+          When done label the issue 'For Review' and remove the 'For Agent Work' label.
           " \
             --allowedTools 'shell' 'write' 'read'
 
-      # --- Authenticate & Run: Codex ---
+      # --- Run: Codex ---
       - name: Run Codex Agent
         if: env.AI_TOOL == 'codex'
         env:
@@ -174,7 +176,13 @@ jobs:
 
           Work on the following issue in this repository.
 
-          ## Issue #${ISSUE_NUMBER}: ${{ steps.issue.outputs.title }}
+          ## Issue #${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
 
-          ${{ steps.issue.outputs.body }}
+          Use the gh cli tool to interact with GitHub. 
+
+          Perform any neccesary code changes in a feature branch, but if there is already a feature branch for this issue, use that one instead. 
+          
+          When done, create a pull request if not already created.
+
+          When done label the issue 'For Review' and remove the 'For Agent Work' label.
           "
