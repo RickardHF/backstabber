@@ -53,6 +53,7 @@
     --grid-color: #e4ddd4;
     --border-color: #c8b8a0;
     --canvas-bg: #f3ede5;
+    --btn-text: #e8e3d9;
   }
 }
 
@@ -129,7 +130,7 @@ body {
   padding: 0.75rem 1.4rem;
   border: 2px solid #483d34;
   border-radius: 8px;
-  color: var(--foreground);
+  color: var(--btn-text, var(--foreground));
   text-transform: uppercase;
   font-size: 0.75rem;
   line-height: 1;
